@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+
+ai_writer_room/logs/*
+!ai_writer_room/logs/.gitkeep
+
+ai_writer_room/output/*
+!ai_writer_room/output/.gitkeep
+

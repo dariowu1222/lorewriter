@@ -1,83 +1,106 @@
 # AI Writer Room v0.1
 
-AI Writer Room v0.1 is the first engineering skeleton for an extensible AI narrative system. This version is scoped to 3-minute rule horror storyboard JSON generation through a CLI, while leaving clear extension points for evaluator, auto-fix, memory, and rendering workflows.
+AI Writer Room v0.1 是一個可擴充的 AI 敘事系統工程骨架。當前版本先支援「本地假資料 storyboard JSON 輸出」，暫不呼叫 OpenAI API，也暫不實作 evaluator。
 
-The codebase targets Python 3.11+ and uses `pathlib`, dataclasses, and Pydantic models. The current files are intentionally skeleton-only: class definitions, function signatures, docstrings, and TODO markers.
+本專案目標是先把長篇 AI Writer Room 的乾淨架構打好，後續可逐步接上 Story Bible、Arc Planner、Foreshadow System、Memory Summary、Evaluator、Auto Fix，以及 30-60 分鐘長篇故事生成。
 
-## Project Goals
+## Current Scope
 
-- Generate 3-minute rule horror storyboard JSON.
-- Provide a CLI-first workflow.
-- Keep generation, evaluation, memory, schemas, prompts, and configuration separated.
-- Prepare the architecture for long-form story generation without adding heavy abstractions in v0.1.
+- Python 3.11+
+- 3 分鐘規則怪談 storyboard JSON
+- 本地 mock data 產生器
+- CLI/script 操作
+- Pydantic schema
+- pathlib output handling
+- 不呼叫 OpenAI API
 
 ## Folder Structure
 
 ```text
 ai_writer_room/
-|
-├─ generator/
-│  ├─ __init__.py
-│  ├─ api_client.py
-│  ├─ prompt_builder.py
-│  ├─ scene_generator.py
-│  ├─ story_planner.py
-│  └─ rule_engine.py
-|
-├─ evaluator/
-│  ├─ __init__.py
-│  ├─ evaluator.py
-│  ├─ pacing_checker.py
-│  ├─ rule_checker.py
-│  └─ forbidden_word_checker.py
-|
-├─ memory/
-│  ├─ __init__.py
-│  ├─ story_bible.py
-│  ├─ memory_summary.py
-│  └─ foreshadow_tracker.py
-|
-├─ schemas/
-│  ├─ storyboard_schema.py
-│  └─ scene_schema.py
-|
-├─ prompts/
-│  ├─ rule_horror.tmpl
-│  ├─ evaluator.tmpl
-│  └─ auto_fix.tmpl
-|
-├─ logs/
-├─ output/
-├─ tests/
-├─ config.py
-├─ cli.py
-├─ generate_storyboard.py
-├─ requirements.txt
-└─ README.md
+├── cli.py
+├── config.py
+├── generate_storyboard.py
+├── README.md
+├── requirements.txt
+├── evaluator/
+│   ├── __init__.py
+│   ├── evaluator.py
+│   ├── forbidden_word_checker.py
+│   ├── pacing_checker.py
+│   └── rule_checker.py
+├── generator/
+│   ├── __init__.py
+│   ├── api_client.py
+│   ├── prompt_builder.py
+│   ├── rule_engine.py
+│   ├── scene_generator.py
+│   └── story_planner.py
+├── logs/
+├── memory/
+│   ├── __init__.py
+│   ├── foreshadow_tracker.py
+│   ├── memory_summary.py
+│   └── story_bible.py
+├── output/
+├── prompts/
+│   ├── auto_fix.tmpl
+│   ├── evaluator.tmpl
+│   └── rule_horror.tmpl
+├── schemas/
+│   ├── scene_schema.py
+│   └── storyboard_schema.py
+└── tests/
 ```
+
+## Usage
+
+先安裝依賴：
+
+```bash
+pip install -r requirements.txt
+```
+
+在 `ai_writer_room/` 目錄內執行 mock storyboard 生成：
+
+```bash
+python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json
+```
+
+輸出檔會建立在：
+
+```text
+output/storyboard_mock.json
+```
+
+輸出的 JSON 使用：
+
+- `ensure_ascii=False`
+- `indent=2`
+- 固定 12 個 scenes
+- `model = local-mock-v0.1`
+- `cost_usd = 0.0`
 
 ## Module Responsibilities
 
-- `generator/`: Prompt construction, story planning, rule handling, scene generation, and model-provider boundary.
-- `evaluator/`: Future storyboard quality checks, pacing checks, rule checks, and forbidden word scanning.
-- `memory/`: Future Story Bible, memory summaries, and foreshadow tracking for long-form continuity.
-- `schemas/`: Pydantic models for storyboard and scene JSON contracts.
-- `prompts/`: Prompt templates for generation, evaluation, and auto-fix.
-- `logs/`: Runtime logs.
-- `output/`: Generated storyboard JSON files.
-- `tests/`: Future unit and integration tests.
-- `config.py`: Application settings and path configuration.
-- `cli.py`: Typer-based command line interface.
-- `generate_storyboard.py`: Programmatic storyboard generation entry point.
+- `generator/`: story planning、prompt 組裝、rule engine、scene generation、model provider 邊界。
+- `schemas/`: storyboard 與 scene 的 Pydantic JSON contract。
+- `evaluator/`: 未來接 pacing、rule、forbidden word 與品質檢查。
+- `memory/`: 未來接 Story Bible、memory summary、foreshadow tracking。
+- `prompts/`: generation、evaluator、auto-fix prompt templates。
+- `output/`: storyboard JSON 輸出。
+- `logs/`: 未來 runtime logs。
+- `tests/`: 未來測試。
 
 ## Roadmap
 
-1. Implement template loading and prompt rendering.
-2. Add OpenAI API integration behind `APIClient`.
-3. Generate schema-valid 3-minute storyboard JSON.
-4. Add evaluator checks for pacing, rules, forbidden words, and story clarity.
-5. Add auto-fix loop using evaluator feedback.
-6. Add Story Bible, memory summary, and foreshadow continuity state.
-7. Extend from 3-minute storyboard generation to 30-60 minute long-form story generation.
-8. Add render/export adapters for downstream video, script, or narration workflows.
+1. 完成本地 mock storyboard JSON 輸出。
+2. 加入 template loading 與 prompt rendering。
+3. 在 `APIClient` 後方接入 OpenAI API。
+4. 產生 schema-valid 的規則怪談 storyboard。
+5. 加入 evaluator：pacing、rules、forbidden words、clarity。
+6. 加入 auto-fix loop。
+7. 加入 Story Bible、Memory Summary、Foreshadow Tracker。
+8. 擴展到 30-60 分鐘 long-form story generation。
+9. 加入 render/export adapter，支援影片、旁白、腳本等下游流程。
 
