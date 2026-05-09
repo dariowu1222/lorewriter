@@ -18,14 +18,15 @@ class EvaluationResult:
     suggestions: list[str] = field(default_factory=list)
 
 
-@dataclass(slots=True)
 class StoryboardEvaluator:
     """Run local rule and forbidden-word checks for a storyboard."""
 
-    rule_checker: RuleChecker = field(default_factory=RuleChecker)
-    forbidden_word_checker: ForbiddenWordChecker = field(
-        default_factory=ForbiddenWordChecker,
-    )
+    def __init__(self, forbidden_words: dict[str, str] | None = None) -> None:
+        """Create an evaluator with configurable forbidden words."""
+        self.rule_checker = RuleChecker()
+        self.forbidden_word_checker = ForbiddenWordChecker(
+            forbidden_words=forbidden_words,
+        )
 
     def evaluate(self, storyboard: Storyboard) -> dict[str, object]:
         """Evaluate a generated storyboard draft."""

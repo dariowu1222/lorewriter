@@ -5,21 +5,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Sequence
 
+from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
-DEFAULT_FORBIDDEN_WORDS: tuple[str, ...] = (
-    "詭異",
-    "莫名",
-    "感到不安",
-    "恐怖",
-    "陰森",
-    "突然",
-    "忽然",
-    "無法形容",
-    "說不上來",
-    "有種感覺",
-)
+DEFAULT_FORBIDDEN_WORDS = tuple(ForbiddenWordConfig.load_default().keys())
 
 
 @dataclass(slots=True)
@@ -27,16 +17,22 @@ class ForbiddenWordHit:
     """A forbidden word match found in generated storyboard text."""
 
     word: str
+    replacement: str
     scene_id: str
     field: str
     count: int
 
 
-@dataclass(slots=True)
 class ForbiddenWordChecker:
     """Scan storyboard text for configured forbidden words."""
 
-    forbidden_words: Sequence[str] = DEFAULT_FORBIDDEN_WORDS
+    def __init__(self, forbidden_words: dict[str, str] | None = None) -> None:
+        """Create a checker using default or caller-provided forbidden words."""
+        self.forbidden_words = (
+            forbidden_words
+            if forbidden_words is not None
+            else ForbiddenWordConfig.load_default()
+        )
 
     def check_storyboard(self, storyboard: Storyboard) -> dict[str, object]:
         """Check narration and dialogue lines for forbidden words."""
@@ -69,24 +65,30 @@ class ForbiddenWordChecker:
     def scan_text(
         self,
         text: str,
-        forbidden_words: Sequence[str] | None = None,
+        forbidden_words: Sequence[str] | dict[str, str] | None = None,
     ) -> list[ForbiddenWordHit]:
         """Scan plain text for forbidden words."""
-        words = forbidden_words or self.forbidden_words
+        words = self._normalize_forbidden_words(forbidden_words)
         return [
-            ForbiddenWordHit(word=word, scene_id="", field="text", count=count)
-            for word in words
+            ForbiddenWordHit(
+                word=word,
+                replacement=replacement,
+                scene_id="",
+                field="text",
+                count=count,
+            )
+            for word, replacement in words.items()
             if (count := text.count(word)) > 0
         ]
 
     def scan_storyboard(
         self,
         storyboard: Storyboard,
-        forbidden_words: Sequence[str] | None = None,
+        forbidden_words: Sequence[str] | dict[str, str] | None = None,
     ) -> list[ForbiddenWordHit]:
         """Scan a storyboard and return raw forbidden word hits."""
         checker = ForbiddenWordChecker(
-            forbidden_words=forbidden_words or self.forbidden_words,
+            forbidden_words=self._normalize_forbidden_words(forbidden_words),
         )
         result = checker.check_storyboard(storyboard)
         return [ForbiddenWordHit(**hit) for hit in result["hits"]]
@@ -101,11 +103,23 @@ class ForbiddenWordChecker:
         return [
             ForbiddenWordHit(
                 word=word,
+                replacement=replacement,
                 scene_id=scene_id,
                 field=field,
                 count=count,
             )
-            for word in self.forbidden_words
+            for word, replacement in self.forbidden_words.items()
             if (count := text.count(word)) > 0
         ]
+
+    def _normalize_forbidden_words(
+        self,
+        forbidden_words: Sequence[str] | dict[str, str] | None,
+    ) -> dict[str, str]:
+        """Normalize old sequence inputs and new replacement dictionaries."""
+        if forbidden_words is None:
+            return self.forbidden_words
+        if isinstance(forbidden_words, dict):
+            return forbidden_words
+        return {word: "" for word in forbidden_words}
 

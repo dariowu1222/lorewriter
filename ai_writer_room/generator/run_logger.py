@@ -24,6 +24,9 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "scene_count",
     "rule_check_passed",
     "forbidden_word_check_passed",
+    "auto_fix_applied",
+    "final_eval_passed",
+    "forbidden_words_source",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (
@@ -87,4 +90,3 @@ class RunLogger:
     def _today(self) -> str:
         """Return today's UTC date for fallback log paths."""
         return datetime.now(UTC).date().isoformat()
-

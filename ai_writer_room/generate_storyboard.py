@@ -15,7 +15,9 @@ if str(PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_PARENT))
 
 from ai_writer_room.config import DEFAULT_MODEL
+from ai_writer_room.evaluator.auto_fix import LocalAutoFixer
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
+from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
 from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.model_provider import (
     LOCAL_PROVIDER_MODEL,
@@ -251,6 +253,17 @@ def parse_args() -> argparse.Namespace:
         help="Manual provider response file to parse into Storyboard JSON.",
     )
     parser.add_argument(
+        "--auto-fix",
+        action="store_true",
+        help="Apply deterministic local fixes after a failed evaluator run.",
+    )
+    parser.add_argument(
+        "--forbidden-words-file",
+        type=Path,
+        default=None,
+        help="Custom forbidden-word replacement JSON file.",
+    )
+    parser.add_argument(
         "--print-prompt",
         action="store_true",
         help="Print the assembled rule horror prompt without calling a model.",
@@ -297,6 +310,9 @@ def build_generation_record(
     eval_result: dict[str, Any] | None,
     eval_output_path: Path | None,
     storyboard: Storyboard,
+    auto_fix_applied: bool,
+    final_eval_passed: bool | None,
+    forbidden_words_source: str,
 ) -> dict[str, Any]:
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
@@ -320,6 +336,9 @@ def build_generation_record(
         "forbidden_word_check_passed": (
             forbidden_check.get("passed") if eval_result else None
         ),
+        "auto_fix_applied": auto_fix_applied,
+        "final_eval_passed": final_eval_passed,
+        "forbidden_words_source": forbidden_words_source,
     }
 
 
@@ -353,7 +372,51 @@ def sanitize_log_error_message(error: Exception, stage: str) -> str:
             f"{error.__class__.__name__} during {stage}; "
             "raw content omitted from logs."
         )
+    lower_message = str(error).lower()
+    if "api key" in lower_message or "openai_api_key" in lower_message:
+        return (
+            f"{error.__class__.__name__} during {stage}; "
+            "credential detail omitted from logs."
+        )
     return str(error)
+
+
+def load_forbidden_words_config(
+    custom_path: Path | None,
+) -> tuple[dict[str, str], str]:
+    """Load default or default+custom forbidden-word config."""
+    defaults = ForbiddenWordConfig.load_default()
+    if custom_path is None:
+        return defaults, "default"
+
+    custom = ForbiddenWordConfig.load_custom(custom_path)
+    return ForbiddenWordConfig.merge(defaults=defaults, custom=custom), "default+custom"
+
+
+def build_eval_payload(
+    before_fix: dict[str, Any],
+    after_fix: dict[str, Any] | None,
+    auto_fix_applied: bool,
+) -> dict[str, Any]:
+    """Build eval JSON payload for optional auto-fix runs."""
+    if after_fix is None:
+        return before_fix
+
+    return {
+        "before_fix": before_fix,
+        "after_fix": after_fix,
+        "auto_fix_applied": auto_fix_applied,
+        "final_passed": after_fix.get("passed"),
+    }
+
+
+def get_final_eval_result(eval_payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return the final evaluator result from plain or auto-fix eval JSON."""
+    if eval_payload is None:
+        return None
+    if "after_fix" in eval_payload:
+        return eval_payload["after_fix"]
+    return eval_payload
 
 
 def main() -> None:
@@ -379,6 +442,8 @@ def main() -> None:
             )
             print_manual_prompt_instructions(args.output)
             return
+        if args.auto_fix and not args.run_eval:
+            raise ValueError("--auto-fix requires --eval.")
     except ValueError as exc:
         print(f"Command failed ({exc.__class__.__name__}): {exc}", file=sys.stderr)
         raise SystemExit(1) from None
@@ -388,8 +453,19 @@ def main() -> None:
     run_id = logger.create_run_id()
     created_at = utc_now_text()
     stage_ref = {"stage": "model_generate"}
+    auto_fix_applied = False
+    final_eval_passed: bool | None = None
+    forbidden_words_source = "default"
 
     try:
+        if args.run_eval:
+            stage_ref["stage"] = "evaluator"
+            forbidden_words, forbidden_words_source = load_forbidden_words_config(
+                args.forbidden_words_file,
+            )
+        else:
+            forbidden_words = {}
+
         storyboard = build_storyboard_without_output(
             provider_name=provider_name,
             sub_genre=args.sub_genre,
@@ -403,15 +479,49 @@ def main() -> None:
         write_storyboard_json(storyboard=storyboard, output_path=args.output)
         print(f"{provider_name.capitalize()} storyboard written to: {args.output}")
 
-        eval_result: dict[str, Any] | None = None
+        eval_payload: dict[str, Any] | None = None
         eval_output_path: Path | None = None
         if args.run_eval:
             stage_ref["stage"] = "evaluator"
-            eval_result = StoryboardEvaluator().evaluate(storyboard)
+            evaluator = StoryboardEvaluator(forbidden_words=forbidden_words)
+            before_fix = evaluator.evaluate(storyboard)
+            after_fix: dict[str, Any] | None = None
+
+            if args.auto_fix and not before_fix.get("passed"):
+                fixed_storyboard = LocalAutoFixer(
+                    forbidden_words=forbidden_words,
+                ).fix(storyboard=storyboard, eval_result=before_fix)
+                storyboard = fixed_storyboard
+                auto_fix_applied = True
+                stage_ref["stage"] = "output_write"
+                write_storyboard_json(storyboard=storyboard, output_path=args.output)
+
+                stage_ref["stage"] = "evaluator"
+                after_fix = evaluator.evaluate(storyboard)
+                eval_payload = build_eval_payload(
+                    before_fix=before_fix,
+                    after_fix=after_fix,
+                    auto_fix_applied=auto_fix_applied,
+                )
+            elif args.auto_fix:
+                after_fix = before_fix
+                eval_payload = build_eval_payload(
+                    before_fix=before_fix,
+                    after_fix=after_fix,
+                    auto_fix_applied=False,
+                )
+            else:
+                eval_payload = before_fix
+
             eval_output_path = build_eval_output_path(args.output)
             stage_ref["stage"] = "output_write"
-            write_json(payload=eval_result, output_path=eval_output_path)
+            write_json(payload=eval_payload, output_path=eval_output_path)
             print(f"Evaluation written to: {eval_output_path}")
+
+            final_eval = get_final_eval_result(eval_payload)
+            final_eval_passed = (
+                bool(final_eval.get("passed")) if final_eval is not None else None
+            )
 
         logger.log_generation(
             build_generation_record(
@@ -420,9 +530,12 @@ def main() -> None:
                 provider_name=provider_name,
                 model_name=model_name,
                 args=args,
-                eval_result=eval_result,
+                eval_result=get_final_eval_result(eval_payload),
                 eval_output_path=eval_output_path,
                 storyboard=storyboard,
+                auto_fix_applied=auto_fix_applied,
+                final_eval_passed=final_eval_passed,
+                forbidden_words_source=forbidden_words_source,
             )
         )
     except Exception as exc:
@@ -458,4 +571,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

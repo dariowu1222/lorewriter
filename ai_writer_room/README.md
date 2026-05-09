@@ -161,6 +161,62 @@ python generate_storyboard.py --provider manual --manual-response output/manual_
 
 Manual prompt 產生模式不寫 generation log。Manual response parse 模式會寫 provider=`manual` 的 generation metadata log，但不會把 prompt 或 response 內容寫進 log。
 
+## Local Auto-Fix
+
+v0.1 auto-fix 只做本地 deterministic 修正：
+
+- 不呼叫 LLM。
+- 不呼叫 OpenAI API。
+- 不花 API 費。
+- 可修禁忌詞。
+- 可補缺失的 `rule_refs`。
+- 可補基本 metadata fallback。
+
+不能修：
+
+- 故事邏輯。
+- 反轉品質。
+- 長篇節奏。
+- 角色動機。
+- 真實敘事張力。
+
+Mock auto-fix example:
+
+```bash
+python generate_storyboard.py --provider mock --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval --auto-fix
+```
+
+Manual response auto-fix with custom forbidden words:
+
+```bash
+python generate_storyboard.py --provider manual --manual-response output/manual_response.json --output output/storyboard_manual.json --eval --auto-fix --forbidden-words-file config/forbidden_words.custom.json
+```
+
+Forbidden-word config:
+
+- Default config: `config/forbidden_words.default.json`
+- Optional custom config: `config/forbidden_words.custom.json`
+- Custom config overrides default replacements.
+- Future frontend input can be converted into a custom forbidden-word JSON file.
+
+Custom config example:
+
+```json
+{
+  "某詞": "替換詞",
+  "另一個詞": ""
+}
+```
+
+If the replacement is an empty string, the word is removed.
+
+When `--auto-fix` is used with `--eval`, eval JSON contains:
+
+- `before_fix`
+- `after_fix`
+- `auto_fix_applied`
+- `final_passed`
+
 ## Outputs
 
 Storyboard JSON:
@@ -232,4 +288,3 @@ Log safety:
 6. Add auto-fix loop.
 7. Add Story Bible, Memory Summary, and Foreshadow Tracker.
 8. Extend to 30-60 minute long-form story generation.
-
