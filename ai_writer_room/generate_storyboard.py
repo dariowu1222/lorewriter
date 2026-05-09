@@ -28,7 +28,17 @@ from ai_writer_room.generator.model_provider import (
 )
 from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.run_logger import RunLogger
-from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
+from ai_writer_room.generator.story_planner import (
+    build_initial_memory_summary,
+    build_initial_story_bible,
+    build_mock_rule_horror_storyboard,
+)
+from ai_writer_room.memory.foreshadow_tracker import (
+    ForeshadowItem,
+    ForeshadowTracker,
+)
+from ai_writer_room.memory.memory_summary import MemorySummary
+from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
@@ -45,6 +55,7 @@ def generate_storyboard(
         sub_genre=sub_genre,
         duration_sec=duration_sec,
     )
+    initialize_story_memory(storyboard)
 
     if output_path is not None:
         write_storyboard_json(storyboard=storyboard, output_path=output_path)
@@ -99,6 +110,7 @@ def generate_storyboard_from_provider(
     provider = build_model_provider(provider_name=provider_name, model=model)
     raw_text = provider.generate_text(prompt)
     storyboard = StoryboardJsonParser().parse_storyboard(raw_text)
+    initialize_story_memory(storyboard)
 
     if output_path is not None:
         write_storyboard_json(storyboard=storyboard, output_path=output_path)
@@ -320,6 +332,62 @@ def require_sub_genre(sub_genre: str | None) -> str:
     return sub_genre
 
 
+def initialize_story_memory(storyboard: Storyboard) -> dict[str, bool | int]:
+    """Ensure long-form memory scaffolding exists on a storyboard."""
+    if not _has_story_bible(storyboard.story_bible):
+        storyboard.story_bible = build_initial_story_bible(storyboard)
+
+    if not _has_memory_summary(storyboard.memory_summary):
+        storyboard.memory_summary = build_initial_memory_summary(storyboard)
+
+    if not storyboard.foreshadowing:
+        storyboard.foreshadowing = ForeshadowTracker().build_initial_foreshadowing(
+            storyboard,
+        )
+
+    return {
+        "story_bible_initialized": _has_story_bible(storyboard.story_bible),
+        "memory_summary_initialized": _has_memory_summary(storyboard.memory_summary),
+        "foreshadow_initialized": bool(storyboard.foreshadowing),
+        "unresolved_foreshadow_count": count_unresolved_foreshadow(storyboard),
+    }
+
+
+def _has_story_bible(value: StoryBible | dict[Any, Any]) -> bool:
+    """Return whether Story Bible data is present and usable."""
+    if isinstance(value, StoryBible):
+        return bool(value.characters or value.world_rules)
+    if isinstance(value, dict):
+        return bool(value)
+    return value is not None
+
+
+def _has_memory_summary(value: MemorySummary | dict[Any, Any]) -> bool:
+    """Return whether memory summary data is present and usable."""
+    if isinstance(value, MemorySummary):
+        return bool(value.current_arc_summary or value.known_rules)
+    if isinstance(value, dict):
+        return bool(value)
+    return value is not None
+
+
+def count_unresolved_foreshadow(storyboard: Storyboard) -> int:
+    """Count foreshadowing entries that still need payoff."""
+    count = 0
+    for item in storyboard.foreshadowing:
+        if isinstance(item, ForeshadowItem):
+            status = item.status
+        elif isinstance(item, dict):
+            status = str(item.get("status", ""))
+        else:
+            status = str(getattr(item, "status", ""))
+
+        if status == "setup_only":
+            count += 1
+
+    return count
+
+
 def utc_now_text() -> str:
     """Return a UTC timestamp for run metadata."""
     return datetime.now(UTC).isoformat()
@@ -338,6 +406,7 @@ def build_generation_record(
     final_eval_passed: bool | None,
     forbidden_words_source: str,
     cost_ref: dict[str, float | int],
+    memory_init_result: dict[str, bool | int],
 ) -> dict[str, Any]:
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
@@ -367,6 +436,22 @@ def build_generation_record(
         "estimated_cost_usd": cost_ref.get("estimated_cost_usd", 0.0),
         "estimated_input_tokens": cost_ref.get("estimated_input_tokens", 0),
         "estimated_output_tokens": cost_ref.get("estimated_output_tokens", 0),
+        "story_bible_initialized": memory_init_result.get(
+            "story_bible_initialized",
+            False,
+        ),
+        "memory_summary_initialized": memory_init_result.get(
+            "memory_summary_initialized",
+            False,
+        ),
+        "foreshadow_initialized": memory_init_result.get(
+            "foreshadow_initialized",
+            False,
+        ),
+        "unresolved_foreshadow_count": memory_init_result.get(
+            "unresolved_foreshadow_count",
+            0,
+        ),
     }
 
 
@@ -527,6 +612,12 @@ def main() -> None:
         "estimated_input_tokens": 0,
         "estimated_output_tokens": 0,
     }
+    memory_init_result: dict[str, bool | int] = {
+        "story_bible_initialized": False,
+        "memory_summary_initialized": False,
+        "foreshadow_initialized": False,
+        "unresolved_foreshadow_count": 0,
+    }
 
     try:
         if args.run_eval:
@@ -547,6 +638,7 @@ def main() -> None:
             cost_ref=cost_ref,
             ignore_budget_guard=args.ignore_budget_guard,
         )
+        memory_init_result = initialize_story_memory(storyboard)
 
         stage_ref["stage"] = "output_write"
         write_storyboard_json(storyboard=storyboard, output_path=args.output)
@@ -610,6 +702,7 @@ def main() -> None:
                 final_eval_passed=final_eval_passed,
                 forbidden_words_source=forbidden_words_source,
                 cost_ref=cost_ref,
+                memory_init_result=memory_init_result,
             )
         )
     except Exception as exc:

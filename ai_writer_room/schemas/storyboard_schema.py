@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from ai_writer_room.memory.foreshadow_tracker import ForeshadowItem
+from ai_writer_room.memory.memory_summary import MemorySummary
+from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.schemas.scene_schema import Scene, SceneDraft
 
 
@@ -17,10 +20,10 @@ class Storyboard(BaseModel):
     model: str
     cost_usd: float
     prologue: str
-    story_bible: dict
+    story_bible: StoryBible | dict
     scenes: list[Scene] = Field(default_factory=list)
-    memory_summary: dict
-    foreshadowing: list[dict] = Field(default_factory=list)
+    memory_summary: MemorySummary | dict
+    foreshadowing: list[ForeshadowItem] | list[dict] = Field(default_factory=list)
 
 
 class StoryboardDraft(BaseModel):

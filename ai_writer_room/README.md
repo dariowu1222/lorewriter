@@ -340,6 +340,59 @@ For `mock` / `manual` / `local`, these values default to zero.
 - `schemas/`: Pydantic contracts for scene and storyboard JSON.
 - `prompts/`: Prompt templates for generation, evaluator, and future auto-fix.
 
+## Story Bible
+
+Story Bible is the long-form continuity layer. In v0.1 it is initialized from the
+current storyboard and stores:
+
+- character profiles
+- world rules
+- major unanswered questions
+- hidden truths
+- tone and theme notes
+
+Purpose:
+
+- keep long-form characters consistent
+- keep rule-horror world logic consistent
+- prepare for future Arc Planner support
+
+v0.1 only initializes this data. It does not run long-form generation yet.
+
+## Memory Summary
+
+Memory Summary is the compressed story-state layer for future 30-60 minute
+generation. In v0.1 it stores:
+
+- current arc summary
+- protagonist goal and status
+- known rules
+- unresolved questions
+- threat level
+- emotional curve
+- last major event
+
+Purpose:
+
+- support future long-form context compression
+- prepare for future multi-pass generation
+
+v0.1 does not implement automatic LLM memory summarization or memory compression.
+
+## Foreshadow Tracker
+
+Foreshadow Tracker manages setup/payoff state. In v0.1 it initializes
+foreshadowing items from storyboard scene refs and tracks unresolved items with
+`status=setup_only`.
+
+Purpose:
+
+- manage setup/payoff pairs
+- avoid lost foreshadowing threads
+- prepare for long-form twist and payoff planning
+
+v0.1 does not implement automatic payoff generation.
+
 ## Roadmap
 
 1. Keep mock generation as the safe local fallback.

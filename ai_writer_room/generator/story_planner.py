@@ -6,6 +6,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 from ai_writer_room.generator.rule_engine import RuleEngine
+from ai_writer_room.memory.foreshadow_tracker import ForeshadowTracker
+from ai_writer_room.memory.memory_summary import MemorySummary
+from ai_writer_room.memory.story_bible import (
+    CharacterProfile,
+    StoryBible,
+    WorldRule,
+)
 from ai_writer_room.schemas.scene_schema import DialogueLine, Scene
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -54,8 +61,6 @@ def build_mock_rule_horror_storyboard(
     duration_sec: int = 180,
 ) -> Storyboard:
     """Build a local mock rule horror storyboard without calling an AI API."""
-    rule_engine = RuleEngine()
-    rules = rule_engine.build_mock_rules(sub_genre=sub_genre, rules_count=5)
     target_duration_sec = max(duration_sec, len(MOCK_SCENE_FUNCTIONS))
     time_ranges = _build_scene_time_ranges(
         target_duration_sec,
@@ -135,7 +140,7 @@ def build_mock_rule_horror_storyboard(
             )
         )
 
-    return Storyboard(
+    storyboard = Storyboard(
         title=f"{sub_genre}規則怪談",
         sub_genre=sub_genre,
         target_duration_sec=target_duration_sec,
@@ -146,40 +151,111 @@ def build_mock_rule_horror_storyboard(
             f"主角搭上與{sub_genre}相關的最後一班路線，"
             "發現車廂裡貼著一張只給乘客看的規則表。"
         ),
-        story_bible={
-            "setting": sub_genre,
-            "rules": [asdict(rule) for rule in rules],
-            "protagonist": "一名錯過正常班次的普通上班族",
-            "threat": "會利用規則漏洞誘導乘客犯錯的異常空間",
-        },
+        story_bible={},
         scenes=scenes,
-        memory_summary={
-            "current_state": "v0.1 mock storyboard；尚未接入長篇記憶系統。",
-            "open_threads": ["月台編號消失", "陌生人是否可信", "規則來源未知"],
-        },
-        foreshadowing=[
-            {
-                "id": "F01",
-                "setup": "廣播聲音與主角童年記憶相同。",
-                "payoff": "主反轉時揭露廣播不是系統，而是另一個自己。",
-            },
-            {
-                "id": "F02",
-                "setup": "車窗倒影比現實慢三秒。",
-                "payoff": "世界崩壞時倒影先做出逃生手勢。",
-            },
-            {
-                "id": "F03",
-                "setup": "空座位上一直放著一張未撕票根。",
-                "payoff": "尾刀時票根上出現主角的名字。",
-            },
-            {
-                "id": "F04",
-                "setup": "陌生人從不踩到車廂燈光下。",
-                "payoff": "真相接近時暗示他不是乘客。",
-            },
+        memory_summary={},
+        foreshadowing=[],
+    )
+    storyboard.story_bible = build_initial_story_bible(storyboard)
+    storyboard.memory_summary = build_initial_memory_summary(storyboard)
+    storyboard.foreshadowing = ForeshadowTracker().build_initial_foreshadowing(
+        storyboard,
+    )
+    return storyboard
+
+
+def build_initial_story_bible(storyboard: Storyboard) -> StoryBible:
+    """Build initial Story Bible state from a storyboard."""
+    rules = RuleEngine().build_mock_rules(
+        sub_genre=storyboard.sub_genre,
+        rules_count=5,
+    )
+    world_rules = [
+        WorldRule(
+            id=rule.id,
+            text=rule.text,
+            category=rule.category,
+            introduced_scene_id=rule.expected_scene_ids[0]
+            if rule.expected_scene_ids
+            else "S01",
+            verified_scene_ids=_scene_ids_using_rule(storyboard, rule.id),
+            broken_scene_ids=["S06"] if rule.id == "R04" else [],
+            is_contradictory=rule.id in {"R04", "R05"},
+        )
+        for rule in rules
+    ]
+
+    return StoryBible(
+        title=storyboard.title,
+        sub_genre=storyboard.sub_genre,
+        protagonist_name="主角",
+        world_summary=(
+            f"{storyboard.sub_genre}被一套會誘導乘客犯錯的規則支配，"
+            "每條規則既像保護，也像篩選。"
+        ),
+        tone_keywords=["規則怪談", "壓迫", "反轉", "日常崩壞"],
+        core_theme="真正危險的不是違規，而是不知道誰制定了規則。",
+        characters=[
+            CharacterProfile(
+                id="C01",
+                name="主角",
+                role="第一人稱敘事者",
+                traits=["謹慎", "疲憊", "願意驗證規則"],
+                secrets=["曾經看過相同的廣播詞"],
+                introduced_scene_id="S01",
+                status="active",
+                suspicion_level=3,
+            )
+        ],
+        world_rules=world_rules,
+        major_questions=[
+            "規則表是誰貼上的？",
+            "陌生人是否真的想救主角？",
+            "末班車的終點是否存在於現實？",
+        ],
+        hidden_truths=[
+            "規則可能不是保護乘客，而是在挑選能留下的人。",
+            "主角的記憶和廣播系統之間有未揭露的連結。",
         ],
     )
+
+
+def build_initial_memory_summary(storyboard: Storyboard) -> MemorySummary:
+    """Build initial memory summary state from a storyboard."""
+    known_rules = sorted(
+        {
+            rule_ref
+            for scene in storyboard.scenes
+            for rule_ref in scene.rule_refs
+        }
+    )
+    last_scene = storyboard.scenes[-1] if storyboard.scenes else None
+    last_major_event = (
+        f"{last_scene.id} {last_scene.function}" if last_scene else "尚未開始"
+    )
+
+    return MemorySummary(
+        current_arc_summary=(
+            f"{storyboard.title}目前完成短篇 storyboard，主角已接觸規則、"
+            "驗證部分規則，並走向尾端反轉。"
+        ),
+        protagonist_goal="找出規則的來源，並離開異常空間。",
+        protagonist_status="仍在規則系統內，尚未確認是否能逃離。",
+        known_rules=known_rules,
+        unresolved_questions=[
+            "誰制定了規則？",
+            "陌生人的真實身分是什麼？",
+            "主角是否已經成為規則的一部分？",
+        ],
+        current_threat_level=4,
+        emotional_curve="困惑 -> 警覺 -> 驗證 -> 失衡 -> 反轉",
+        last_major_event=last_major_event,
+    )
+
+
+def _scene_ids_using_rule(storyboard: Storyboard, rule_id: str) -> list[str]:
+    """Return scene ids that reference a rule."""
+    return [scene.id for scene in storyboard.scenes if rule_id in scene.rule_refs]
 
 
 @dataclass(slots=True)

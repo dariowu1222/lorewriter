@@ -30,6 +30,10 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "estimated_cost_usd",
     "estimated_input_tokens",
     "estimated_output_tokens",
+    "story_bible_initialized",
+    "memory_summary_initialized",
+    "foreshadow_initialized",
+    "unresolved_foreshadow_count",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (

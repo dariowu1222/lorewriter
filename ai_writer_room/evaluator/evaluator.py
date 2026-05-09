@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from ai_writer_room.evaluator.forbidden_word_checker import ForbiddenWordChecker
 from ai_writer_room.evaluator.rule_checker import RuleChecker
+from ai_writer_room.evaluator.story_memory_checker import StoryMemoryChecker
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
@@ -27,11 +28,13 @@ class StoryboardEvaluator:
         self.forbidden_word_checker = ForbiddenWordChecker(
             forbidden_words=forbidden_words,
         )
+        self.story_memory_checker = StoryMemoryChecker()
 
     def evaluate(self, storyboard: Storyboard) -> dict[str, object]:
         """Evaluate a generated storyboard draft."""
         rule_check = self.rule_checker.check(storyboard)
         forbidden_word_check = self.forbidden_word_checker.check_storyboard(storyboard)
+        story_memory_check = self.story_memory_checker.check(storyboard)
 
         return {
             "passed": bool(
@@ -39,10 +42,10 @@ class StoryboardEvaluator:
             ),
             "rule_check": rule_check,
             "forbidden_word_check": forbidden_word_check,
+            "story_memory_check": story_memory_check,
         }
 
     def summarize_findings(self, result: EvaluationResult) -> str:
         """Summarize evaluator findings for CLI output or auto-fix."""
         # TODO: Convert structured issues into concise feedback text.
         pass
-
