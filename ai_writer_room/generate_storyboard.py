@@ -29,7 +29,7 @@ from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyb
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
-ProviderName = Literal["mock", "openai", "local"]
+ProviderName = Literal["mock", "openai", "local", "manual"]
 
 
 def generate_storyboard(
@@ -79,6 +79,8 @@ def generate_storyboard_from_provider(
             output_path=output_path,
             duration_sec=duration_sec,
         )
+    if provider_name == "manual":
+        raise ValueError("Manual provider requires --manual-response for parsing.")
 
     prompt = PromptBuilder().build_rule_horror_prompt(
         sub_genre=sub_genre,
@@ -109,12 +111,23 @@ def build_model_provider(
 
 def build_storyboard_without_output(
     provider_name: ProviderName,
-    sub_genre: str,
+    sub_genre: str | None,
     duration_sec: int,
     model: str | None,
+    manual_response: Path | None,
     stage_ref: dict[str, str],
 ) -> Storyboard:
     """Build a storyboard while exposing coarse failure stages to the CLI."""
+    if provider_name == "manual":
+        if manual_response is None:
+            raise ValueError("Manual provider requires --manual-response for parsing.")
+        stage_ref["stage"] = "json_parse"
+        raw_text = manual_response.read_text(encoding="utf-8")
+        return StoryboardJsonParser().parse_storyboard(raw_text)
+
+    if sub_genre is None:
+        raise ValueError("--sub-genre is required for this provider.")
+
     if provider_name == "mock":
         stage_ref["stage"] = "model_generate"
         return generate_storyboard(
@@ -134,6 +147,30 @@ def build_storyboard_without_output(
 
     stage_ref["stage"] = "json_parse"
     return StoryboardJsonParser().parse_storyboard(raw_text)
+
+
+def write_manual_prompt_file(
+    sub_genre: str,
+    duration_sec: int,
+    output_path: Path,
+) -> None:
+    """Write a prompt for manual copy/paste generation."""
+    prompt = PromptBuilder().build_rule_horror_prompt(
+        sub_genre=sub_genre,
+        duration_sec=duration_sec,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(prompt, encoding="utf-8")
+
+
+def print_manual_prompt_instructions(output_path: Path) -> None:
+    """Print manual provider next-step instructions."""
+    print(f"Manual prompt written to: {output_path}")
+    print("Next steps:")
+    print("1. 請把 manual_prompt.txt 的內容貼到 ChatGPT / Claude / Gemini")
+    print("2. 請模型只回傳 JSON")
+    print("3. 將回傳結果存成 output/manual_response.json")
+    print("4. 再執行 manual response parse 指令")
 
 
 def write_storyboard_json(storyboard: Storyboard, output_path: Path) -> None:
@@ -167,13 +204,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--provider",
-        choices=["mock", "openai", "local"],
+        choices=["mock", "openai", "local", "manual"],
         default="mock",
         help="Generation provider. Default: mock.",
     )
     parser.add_argument(
         "--sub-genre",
-        required=True,
+        default=None,
         help="Rule horror sub-genre or setting, for example: 地鐵末班車.",
     )
     parser.add_argument(
@@ -208,6 +245,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--manual-response",
+        type=Path,
+        default=None,
+        help="Manual provider response file to parse into Storyboard JSON.",
+    )
+    parser.add_argument(
         "--print-prompt",
         action="store_true",
         help="Print the assembled rule horror prompt without calling a model.",
@@ -228,7 +271,16 @@ def resolve_model_name(provider_name: ProviderName, model: str | None) -> str:
         return "local-mock-v0.1"
     if provider_name == "local":
         return model or LOCAL_PROVIDER_MODEL
+    if provider_name == "manual":
+        return "manual"
     return model or DEFAULT_MODEL
+
+
+def require_sub_genre(sub_genre: str | None) -> str:
+    """Require sub-genre for prompt-producing flows."""
+    if not sub_genre:
+        raise ValueError("--sub-genre is required for this command.")
+    return sub_genre
 
 
 def utc_now_text() -> str:
@@ -255,7 +307,7 @@ def build_generation_record(
         "created_at": created_at,
         "provider": provider_name,
         "model": model_name,
-        "sub_genre": args.sub_genre,
+        "sub_genre": args.sub_genre or storyboard.sub_genre,
         "duration_sec": args.duration,
         "output_path": str(args.output),
         "eval_path": str(eval_output_path) if eval_output_path else None,
@@ -286,27 +338,51 @@ def build_failure_record(
         "created_at": created_at,
         "provider": provider_name,
         "model": model_name,
-        "sub_genre": args.sub_genre,
+        "sub_genre": args.sub_genre or "",
         "duration_sec": args.duration,
         "error_type": error.__class__.__name__,
-        "error_message": str(error),
+        "error_message": sanitize_log_error_message(error=error, stage=stage),
         "stage": stage,
     }
+
+
+def sanitize_log_error_message(error: Exception, stage: str) -> str:
+    """Keep raw prompt/model/manual response content out of logs."""
+    if stage in {"json_parse", "schema_validate"}:
+        return (
+            f"{error.__class__.__name__} during {stage}; "
+            "raw content omitted from logs."
+        )
+    return str(error)
 
 
 def main() -> None:
     """Run storyboard generation from a script entry point."""
     args = parse_args()
 
-    if args.print_prompt:
-        prompt = PromptBuilder().build_rule_horror_prompt(
-            sub_genre=args.sub_genre,
-            duration_sec=args.duration,
-        )
-        print(prompt)
-        return
+    try:
+        if args.print_prompt:
+            prompt = PromptBuilder().build_rule_horror_prompt(
+                sub_genre=require_sub_genre(args.sub_genre),
+                duration_sec=args.duration,
+            )
+            print(prompt)
+            return
 
-    provider_name = resolve_provider_name(args)
+        provider_name = resolve_provider_name(args)
+
+        if provider_name == "manual" and args.manual_response is None:
+            write_manual_prompt_file(
+                sub_genre=require_sub_genre(args.sub_genre),
+                duration_sec=args.duration,
+                output_path=args.output,
+            )
+            print_manual_prompt_instructions(args.output)
+            return
+    except ValueError as exc:
+        print(f"Command failed ({exc.__class__.__name__}): {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
     model_name = resolve_model_name(provider_name=provider_name, model=args.model)
     logger = RunLogger()
     run_id = logger.create_run_id()
@@ -319,6 +395,7 @@ def main() -> None:
             sub_genre=args.sub_genre,
             duration_sec=args.duration,
             model=args.model,
+            manual_response=args.manual_response,
             stage_ref=stage_ref,
         )
 
