@@ -217,6 +217,60 @@ When `--auto-fix` is used with `--eval`, eval JSON contains:
 - `auto_fix_applied`
 - `final_passed`
 
+## Cost Guard
+
+Cost Guard 用來避免 OpenAI API 成本失控。
+
+- 只限制 `--provider openai`。
+- `mock` / `manual` / `local` 不受 Cost Guard 阻擋。
+- 目前是估算型成本控制。
+- 不呼叫 OpenAI usage API。
+- 不需要 DB。
+- 不實作 dashboard。
+- 不實作付費系統。
+
+Default config:
+
+```text
+config/cost_guard.default.json
+```
+
+目前支援：
+
+- 單次成本限制：`single_run_max_usd`
+- 月成本限制：`monthly_budget_usd`
+- warning threshold：`warning_threshold_ratio`
+- model rough pricing table
+
+Token estimation:
+
+```text
+estimated_tokens = len(text) / 4
+```
+
+Pricing 是 rough estimate，未來可更新，不要求與 OpenAI 官方價格完全同步。
+
+如果 OpenAI run 超過單次或月成本限制，生成會在 API 呼叫前中止，並寫入 failure log：
+
+```text
+stage = budget_guard
+```
+
+## Ignore Budget Guard
+
+開發者可以強制略過 budget guard：
+
+```bash
+python generate_storyboard.py --provider openai --ignore-budget-guard --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_openai.json
+```
+
+使用 `--ignore-budget-guard` 時：
+
+- Cost Guard 仍會估算成本。
+- 若超過限制，console 只顯示 warning。
+- 不會因 budget guard 阻擋執行。
+- 成功生成時 generation metadata 仍會寫入估算成本。
+
 ## Outputs
 
 Storyboard JSON:
@@ -264,6 +318,14 @@ Log safety:
 - Logs do not record manual prompt or manual response content.
 - Real log files are ignored by Git.
 - `logs/.gitkeep` is kept only so the directory exists in the repository.
+
+Generation metadata includes estimated cost fields:
+
+- `estimated_cost_usd`
+- `estimated_input_tokens`
+- `estimated_output_tokens`
+
+For `mock` / `manual` / `local`, these values default to zero.
 
 ## Module Responsibilities
 

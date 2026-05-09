@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "default_currency": "USD",
+  "monthly_budget_usd": 20.0,
+  "single_run_max_usd": 0.5,
+  "warning_threshold_ratio": 0.8,
+  "models": {
+    "gpt-4o-mini": {
+      "estimated_input_per_1k": 0.00015,
+      "estimated_output_per_1k": 0.0006
+    },
+    "gpt-4o": {
+      "estimated_input_per_1k": 0.005,
+      "estimated_output_per_1k": 0.015
+    }
+  }
+}

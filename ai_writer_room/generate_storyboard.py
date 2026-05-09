@@ -18,6 +18,7 @@ from ai_writer_room.config import DEFAULT_MODEL
 from ai_writer_room.evaluator.auto_fix import LocalAutoFixer
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
 from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
+from ai_writer_room.generator.cost_guard import CostGuard
 from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.model_provider import (
     LOCAL_PROVIDER_MODEL,
@@ -88,6 +89,13 @@ def generate_storyboard_from_provider(
         sub_genre=sub_genre,
         duration_sec=duration_sec,
     )
+    if provider_name == "openai":
+        run_budget_guard(
+            prompt=prompt,
+            model_name=model or DEFAULT_MODEL,
+            cost_ref={},
+            ignore_budget_guard=False,
+        )
     provider = build_model_provider(provider_name=provider_name, model=model)
     raw_text = provider.generate_text(prompt)
     storyboard = StoryboardJsonParser().parse_storyboard(raw_text)
@@ -118,6 +126,8 @@ def build_storyboard_without_output(
     model: str | None,
     manual_response: Path | None,
     stage_ref: dict[str, str],
+    cost_ref: dict[str, float | int],
+    ignore_budget_guard: bool = False,
 ) -> Storyboard:
     """Build a storyboard while exposing coarse failure stages to the CLI."""
     if provider_name == "manual":
@@ -142,6 +152,15 @@ def build_storyboard_without_output(
         sub_genre=sub_genre,
         duration_sec=duration_sec,
     )
+
+    if provider_name == "openai":
+        stage_ref["stage"] = "budget_guard"
+        run_budget_guard(
+            prompt=prompt,
+            model_name=model or DEFAULT_MODEL,
+            cost_ref=cost_ref,
+            ignore_budget_guard=ignore_budget_guard,
+        )
 
     stage_ref["stage"] = "model_generate"
     provider = build_model_provider(provider_name=provider_name, model=model)
@@ -264,6 +283,11 @@ def parse_args() -> argparse.Namespace:
         help="Custom forbidden-word replacement JSON file.",
     )
     parser.add_argument(
+        "--ignore-budget-guard",
+        action="store_true",
+        help="Warn but do not block OpenAI runs that exceed budget guard checks.",
+    )
+    parser.add_argument(
         "--print-prompt",
         action="store_true",
         help="Print the assembled rule horror prompt without calling a model.",
@@ -313,6 +337,7 @@ def build_generation_record(
     auto_fix_applied: bool,
     final_eval_passed: bool | None,
     forbidden_words_source: str,
+    cost_ref: dict[str, float | int],
 ) -> dict[str, Any]:
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
@@ -339,6 +364,9 @@ def build_generation_record(
         "auto_fix_applied": auto_fix_applied,
         "final_eval_passed": final_eval_passed,
         "forbidden_words_source": forbidden_words_source,
+        "estimated_cost_usd": cost_ref.get("estimated_cost_usd", 0.0),
+        "estimated_input_tokens": cost_ref.get("estimated_input_tokens", 0),
+        "estimated_output_tokens": cost_ref.get("estimated_output_tokens", 0),
     }
 
 
@@ -391,6 +419,44 @@ def load_forbidden_words_config(
 
     custom = ForbiddenWordConfig.load_custom(custom_path)
     return ForbiddenWordConfig.merge(defaults=defaults, custom=custom), "default+custom"
+
+
+def run_budget_guard(
+    prompt: str,
+    model_name: str,
+    cost_ref: dict[str, float | int],
+    ignore_budget_guard: bool,
+) -> None:
+    """Estimate and enforce OpenAI budget guard checks."""
+    guard = CostGuard()
+    estimate = guard.estimate_cost(model=model_name, prompt=prompt)
+    cost_ref.update(estimate)
+
+    single_run_check = guard.check_single_run_budget(
+        float(estimate["estimated_cost_usd"])
+    )
+    monthly_check = guard.check_monthly_budget()
+
+    if monthly_check.get("warning_threshold_reached"):
+        print(
+            f"Budget warning: {monthly_check['message']}",
+            file=sys.stderr,
+        )
+
+    failed_messages = [
+        str(check["message"])
+        for check in (single_run_check, monthly_check)
+        if not check.get("passed")
+    ]
+    if not failed_messages:
+        return
+
+    message = " ".join(failed_messages)
+    if ignore_budget_guard:
+        print(f"Budget guard warning ignored: {message}", file=sys.stderr)
+        return
+
+    raise RuntimeError(message)
 
 
 def build_eval_payload(
@@ -456,6 +522,11 @@ def main() -> None:
     auto_fix_applied = False
     final_eval_passed: bool | None = None
     forbidden_words_source = "default"
+    cost_ref: dict[str, float | int] = {
+        "estimated_cost_usd": 0.0,
+        "estimated_input_tokens": 0,
+        "estimated_output_tokens": 0,
+    }
 
     try:
         if args.run_eval:
@@ -473,6 +544,8 @@ def main() -> None:
             model=args.model,
             manual_response=args.manual_response,
             stage_ref=stage_ref,
+            cost_ref=cost_ref,
+            ignore_budget_guard=args.ignore_budget_guard,
         )
 
         stage_ref["stage"] = "output_write"
@@ -536,6 +609,7 @@ def main() -> None:
                 auto_fix_applied=auto_fix_applied,
                 final_eval_passed=final_eval_passed,
                 forbidden_words_source=forbidden_words_source,
+                cost_ref=cost_ref,
             )
         )
     except Exception as exc:

@@ -27,6 +27,9 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "auto_fix_applied",
     "final_eval_passed",
     "forbidden_words_source",
+    "estimated_cost_usd",
+    "estimated_input_tokens",
+    "estimated_output_tokens",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (
