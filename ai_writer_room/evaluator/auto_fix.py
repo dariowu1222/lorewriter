@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
+from ai_writer_room.evaluator.forbidden_word_checker import build_forbidden_word_pattern
 from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -68,11 +71,12 @@ class LocalAutoFixer:
             return fixed
 
         scene_by_id = {scene.id: scene for scene in fixed.scenes}
-        fallback_scene = fixed.scenes[-1]
-
         for rule_id in missing_rule_ids:
             target_scene_id = RULE_REF_TARGET_SCENES.get(str(rule_id))
-            target_scene = scene_by_id.get(target_scene_id, fallback_scene)
+            if target_scene_id is None:
+                continue
+
+            target_scene = scene_by_id.get(target_scene_id, fixed.scenes[-1])
             if rule_id not in target_scene.rule_refs:
                 target_scene.rule_refs.append(rule_id)
 
@@ -97,12 +101,12 @@ class LocalAutoFixer:
         """Replace all configured forbidden words in a text field."""
         fixed_text = text
         for word, replacement in self.forbidden_words.items():
-            fixed_text = fixed_text.replace(word, replacement)
+            fixed_text = build_forbidden_word_pattern(word).sub(
+                replacement,
+                fixed_text,
+            )
         return fixed_text
 
     def _copy_storyboard(self, storyboard: Storyboard) -> Storyboard:
-        """Deep-copy a storyboard across Pydantic versions."""
-        if hasattr(storyboard, "model_copy"):
-            return storyboard.model_copy(deep=True)
-        return storyboard.copy(deep=True)
-
+        """Deep-copy a storyboard without sharing nested model state."""
+        return deepcopy(storyboard)

@@ -48,7 +48,9 @@ class StoryboardEvaluator:
 
         result: dict[str, object] = {
             "passed": bool(
-                rule_check.get("passed") and forbidden_word_check.get("passed")
+                rule_check.get("passed")
+                and forbidden_word_check.get("passed")
+                and arc_check.get("passed")
             ),
             "rule_check": rule_check,
             "forbidden_word_check": forbidden_word_check,
@@ -64,5 +66,4 @@ class StoryboardEvaluator:
 
     def summarize_findings(self, result: EvaluationResult) -> str:
         """Summarize evaluator findings for CLI output or auto-fix."""
-        # TODO: Convert structured issues into concise feedback text.
-        pass
+        raise NotImplementedError("Evaluator summaries are planned for v0.2.")

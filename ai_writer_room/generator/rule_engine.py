@@ -99,11 +99,8 @@ class RuleEngine:
 
     def build_rules(self, premise: str) -> RuleSet:
         """Build a candidate rule set from the story premise."""
-        # TODO: Extract or synthesize rules from the premise.
-        pass
+        raise NotImplementedError("Dynamic rule synthesis is planned for v0.2.")
 
     def validate_rule_consistency(self, rules: RuleSet) -> list[str]:
         """Return consistency issues found in a rule set."""
-        # TODO: Check contradictions, missing payoffs, and unclear rules.
-        pass
-
+        raise NotImplementedError("Deep rule consistency checks are planned for v0.2.")

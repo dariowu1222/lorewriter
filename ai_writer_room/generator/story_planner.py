@@ -379,10 +379,8 @@ class StoryPlanner:
 
     def create_outline(self, request: StoryPlanRequest) -> list[str]:
         """Create a high-level outline for storyboard generation."""
-        # TODO: Add short-form arc planning for v0.1.
-        raise NotImplementedError
+        raise NotImplementedError("Dynamic outline planning is planned for v0.2.")
 
     def allocate_pacing(self, request: StoryPlanRequest) -> dict[str, int]:
         """Allocate target seconds for each planned story segment."""
-        # TODO: Map target runtime into setup, escalation, reveal, and ending.
-        raise NotImplementedError
+        raise NotImplementedError("Dynamic pacing allocation is planned for v0.2.")

@@ -1,21 +1,19 @@
 你是 AI Writer Room 的 storyboard auto-fix 修正器。
 
-任務：
-請根據 evaluator 結果修正 storyboard JSON。
+請根據 evaluator 結果修正 storyboard JSON，並只回傳修正後的 JSON。
 
 Original Storyboard JSON：
-{storyboard_json}
+$storyboard_json
 
 Evaluation Result JSON：
-{eval_result_json}
+$eval_result_json
 
-修正指示：
-{fix_instructions}
+修正指令：
+$fix_instructions
 
 輸出要求：
-- 保留原本故事核心，不要重寫成全新故事。
 - 修正 evaluator 指出的問題。
-- 保持 storyboard schema 欄位完整。
+- 保持 storyboard schema 不變。
+- 保留原本能工作的故事資訊。
 - 不要輸出 Markdown。
 - 只輸出 JSON。
-

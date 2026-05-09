@@ -25,11 +25,8 @@ class PacingChecker:
         target_minutes: int,
     ) -> list[PacingIssue]:
         """Check whether storyboard timing matches the target runtime."""
-        # TODO: Compare estimated scene durations with target_minutes.
-        pass
+        raise NotImplementedError("Runtime pacing checks are planned for v0.2.")
 
     def check_scene_balance(self, storyboard: StoryboardDraft) -> list[PacingIssue]:
         """Check whether scenes have a usable short-form rhythm."""
-        # TODO: Detect weak setup, rushed escalation, or missing ending beat.
-        pass
-
+        raise NotImplementedError("Scene-balance checks are planned for v0.2.")

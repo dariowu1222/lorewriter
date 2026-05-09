@@ -12,8 +12,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+DEFAULT_API_KEY_FILE_TEXT = "~/.config/ai_writer_room/openai_api_key"
 API_KEY_FILE_PATH = Path(
-    r"C:\Users\p0989\Desktop\claude floder\claude floder.openai_api_key"
+    os.getenv("OPENAI_API_KEY_FILE")
+    or Path.home() / ".config" / "ai_writer_room" / "openai_api_key"
 )
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -43,8 +45,8 @@ def load_openai_api_key() -> str:
             return file_key
 
     raise RuntimeError(
-        "OpenAI API key not found. Set OPENAI_API_KEY or create the local key "
-        f"file at: {API_KEY_FILE_PATH}"
+        "OpenAI API key not found. Set OPENAI_API_KEY, set OPENAI_API_KEY_FILE, "
+        f"or create the default local key file at {DEFAULT_API_KEY_FILE_TEXT}."
     )
 
 
@@ -60,4 +62,3 @@ def get_settings(project_root: Path | None = None) -> Settings:
         openai_api_key=load_openai_api_key(),
         api_key_file_path=API_KEY_FILE_PATH,
     )
-

@@ -26,7 +26,7 @@ class CostGuard:
         self,
         model: str,
         prompt: str,
-        estimated_output_tokens: int = 2500,
+        estimated_output_tokens: int = 6500,
     ) -> dict[str, float | int]:
         """Estimate input/output tokens and rough USD cost for one run."""
         estimated_input_tokens = math.ceil(len(prompt) / 4)

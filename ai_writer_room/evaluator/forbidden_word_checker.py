@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 from typing import Sequence
 
 from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
@@ -10,6 +11,14 @@ from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
 DEFAULT_FORBIDDEN_WORDS = tuple(ForbiddenWordConfig.load_default().keys())
+
+
+def build_forbidden_word_pattern(word: str) -> re.Pattern[str]:
+    """Build a regex pattern with word boundaries for ASCII terms."""
+    escaped_word = re.escape(word)
+    if re.search(r"[A-Za-z0-9_]", word):
+        return re.compile(rf"\b{escaped_word}\b")
+    return re.compile(escaped_word)
 
 
 @dataclass(slots=True)
@@ -59,7 +68,7 @@ class ForbiddenWordChecker:
         return {
             "total_hits": total_hits,
             "hits": [asdict(hit) for hit in hits],
-            "passed": total_hits <= 2,
+            "passed": total_hits == 0,
         }
 
     def scan_text(
@@ -78,7 +87,7 @@ class ForbiddenWordChecker:
                 count=count,
             )
             for word, replacement in words.items()
-            if (count := text.count(word)) > 0
+            if (count := len(build_forbidden_word_pattern(word).findall(text))) > 0
         ]
 
     def scan_storyboard(
@@ -109,7 +118,7 @@ class ForbiddenWordChecker:
                 count=count,
             )
             for word, replacement in self.forbidden_words.items()
-            if (count := text.count(word)) > 0
+            if (count := len(build_forbidden_word_pattern(word).findall(text))) > 0
         ]
 
     def _normalize_forbidden_words(
@@ -122,4 +131,3 @@ class ForbiddenWordChecker:
         if isinstance(forbidden_words, dict):
             return forbidden_words
         return {word: "" for word in forbidden_words}
-

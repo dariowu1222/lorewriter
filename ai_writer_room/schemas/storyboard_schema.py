@@ -21,11 +21,11 @@ class Storyboard(BaseModel):
     model: str
     cost_usd: float
     prologue: str
-    story_bible: StoryBible | dict
-    scenes: list[Scene] = Field(default_factory=list)
-    memory_summary: MemorySummary | dict
-    foreshadowing: list[ForeshadowItem] | list[dict] = Field(default_factory=list)
-    arc_plan: ArcPlan | dict | None = None
+    story_bible: StoryBible = Field(default_factory=StoryBible)
+    scenes: list[Scene] = Field(default_factory=list, min_length=12, max_length=12)
+    memory_summary: MemorySummary = Field(default_factory=MemorySummary)
+    foreshadowing: list[ForeshadowItem] = Field(default_factory=list)
+    arc_plan: ArcPlan | None = None
 
 
 class StoryboardDraft(BaseModel):

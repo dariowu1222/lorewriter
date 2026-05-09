@@ -1,33 +1,17 @@
-"""Command line interface for AI Writer Room v0.1."""
+"""Compatibility CLI wrapper for AI Writer Room."""
 
 from __future__ import annotations
 
 from pathlib import Path
-
-import typer
-from rich.console import Console
+import sys
 
 
-app = typer.Typer(help="AI Writer Room v0.1 CLI.")
-console = Console()
+PACKAGE_PARENT = Path(__file__).resolve().parent.parent
+if str(PACKAGE_PARENT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_PARENT))
 
-
-@app.command()
-def storyboard(
-    premise: str,
-    output: Path | None = None,
-    target_minutes: int = 3,
-) -> None:
-    """Generate a rule horror storyboard JSON."""
-    # TODO: Wire planner, prompt builder, API client, scene generator, and writer.
-    pass
-
-
-def main() -> None:
-    """Run the Typer application."""
-    app()
+from ai_writer_room.generate_storyboard import main
 
 
 if __name__ == "__main__":
     main()
-

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from string import Template
 
 from ai_writer_room.evaluator.forbidden_word_checker import DEFAULT_FORBIDDEN_WORDS
 
@@ -43,8 +44,8 @@ class PromptBuilder:
         scene_count: int = 12,
     ) -> str:
         """Build the v0.1 rule horror storyboard generation prompt."""
-        template = self.load_template("rule_horror.tmpl")
-        return template.format(
+        template = Template(self.load_template("rule_horror.tmpl"))
+        return template.safe_substitute(
             sub_genre=sub_genre,
             duration_sec=duration_sec,
             rules_count=rules_count,
@@ -62,8 +63,8 @@ class PromptBuilder:
         eval_rules: str,
     ) -> str:
         """Build a future LLM-as-judge evaluator prompt."""
-        template = self.load_template("evaluator.tmpl")
-        return template.format(
+        template = Template(self.load_template("evaluator.tmpl"))
+        return template.safe_substitute(
             storyboard_json=storyboard_json,
             eval_rules=eval_rules,
             forbidden_words=self.get_forbidden_words_text(),
@@ -76,8 +77,8 @@ class PromptBuilder:
         fix_instructions: str,
     ) -> str:
         """Build a future auto-fix prompt from evaluator feedback."""
-        template = self.load_template("auto_fix.tmpl")
-        return template.format(
+        template = Template(self.load_template("auto_fix.tmpl"))
+        return template.safe_substitute(
             storyboard_json=storyboard_json,
             eval_result_json=eval_result_json,
             fix_instructions=fix_instructions,
@@ -127,7 +128,7 @@ class PromptBuilder:
         )
 
     def get_forbidden_words_text(self) -> str:
-        """Return the Step 3 forbidden-word list."""
+        """Return the configured forbidden-word list."""
         return "\n".join(f"- {word}" for word in DEFAULT_FORBIDDEN_WORDS)
 
     def get_output_schema_notes(self) -> str:
@@ -135,13 +136,13 @@ class PromptBuilder:
         return "\n".join(
             [
                 "根物件必須包含 title, sub_genre, target_duration_sec, generated_at, model, cost_usd。",
-                "根物件必須包含 prologue, story_bible, scenes, memory_summary, foreshadowing。",
-                "story_bible 必須包含 rules，且每條 rule 需要 id, text, category, is_visual, expected_scene_ids。",
+                "根物件必須包含 prologue, story_bible, scenes, memory_summary, foreshadowing, arc_plan。",
+                "story_bible 必須包含 world_rules；每條 world_rule 需要 id, text, category, introduced_scene_id。",
                 "scenes 必須固定 12 筆，id 從 S01 到 S12。",
                 "每個 scene 必須包含 title, function, mood, bgm_intensity, time_in_story, narration_zh。",
                 "每個 scene 必須包含 dialogue_lines, rule_refs, foreshadow_refs。",
                 "dialogue_lines 每筆必須包含 speaker 與 text。",
-                "rule_refs 必須引用 story_bible.rules 中存在的 rule id。",
+                "rule_refs 必須引用 story_bible.world_rules 中存在的 rule id。",
+                "arc_plan 必須包含 6 個 arcs，且包含中段反轉、主反轉、尾刀。",
             ]
         )
-

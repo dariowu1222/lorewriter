@@ -16,11 +16,8 @@ class SceneGenerator:
 
     def generate_scene(self, scene_id: str, prompt: str) -> SceneDraft:
         """Generate a single scene draft from a prompt."""
-        # TODO: Call APIClient and parse the response into SceneDraft.
-        pass
+        raise NotImplementedError("Scene generation is planned for v0.2.")
 
     def revise_scene(self, scene: SceneDraft, feedback: list[str]) -> SceneDraft:
         """Revise a scene using evaluator feedback."""
-        # TODO: Support future auto-fix scene revisions.
-        pass
-
+        raise NotImplementedError("Scene revision is planned for v0.2.")

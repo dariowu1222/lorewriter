@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
-@dataclass(slots=True)
-class ForeshadowItem:
+class ForeshadowItem(BaseModel):
     """A planted hint that may need payoff later."""
 
-    id: str
-    setup_scene_id: str
-    setup_text: str
-    expected_payoff_scene_id: str
+    id: str = ""
+    setup_scene_id: str = ""
+    setup_text: str = ""
+    expected_payoff_scene_id: str = ""
     planned_payoff_arc_id: str = "A06"
     payoff_scene_id: str | None = None
     payoff_text: str | None = None

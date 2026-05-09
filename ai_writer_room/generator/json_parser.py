@@ -26,15 +26,14 @@ class StoryboardJsonParser:
                 lines = lines[:-1]
             text = "\n".join(lines).strip()
 
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end < start:
+        json_text = self._find_balanced_json_object(text)
+        if json_text is None:
             raise ValueError(
-                "Could not find a JSON object in model output. "
+                "Could not find a balanced JSON object in model output. "
                 f"Raw preview: {self._preview(raw_text)}"
             )
 
-        return text[start : end + 1]
+        return json_text
 
     def parse_storyboard(self, raw_text: str) -> Storyboard:
         """Parse raw model output into a Storyboard Pydantic model."""
@@ -62,3 +61,36 @@ class StoryboardJsonParser:
         """Return a safe preview for parse errors."""
         return raw_text[:500].replace("\n", "\\n")
 
+    def _find_balanced_json_object(self, text: str) -> str | None:
+        """Find the first balanced top-level JSON object in text."""
+        start = -1
+        depth = 0
+        in_string = False
+        escaped = False
+
+        for index, char in enumerate(text):
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+                continue
+
+            if char == "{":
+                if depth == 0:
+                    start = index
+                depth += 1
+            elif char == "}":
+                if depth == 0:
+                    continue
+                depth -= 1
+                if depth == 0 and start != -1:
+                    return text[start : index + 1]
+
+        return None

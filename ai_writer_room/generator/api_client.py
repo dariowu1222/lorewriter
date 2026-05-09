@@ -33,8 +33,7 @@ class APIClient:
 
     def generate_text(self, request: GenerationRequest) -> GenerationResponse:
         """Generate text from a prompt request."""
-        # TODO: Implement provider-specific API call without leaking SDK details.
-        pass
+        raise NotImplementedError("Provider APIClient is planned for v0.2.")
 
 
 class OpenAIClient:
@@ -47,7 +46,11 @@ class OpenAIClient:
     ) -> None:
         """Create an OpenAI API client without exposing credentials."""
         self.model = model
-        self._client = OpenAI(api_key=api_key or load_openai_api_key())
+        self._client = OpenAI(
+            api_key=api_key or load_openai_api_key(),
+            max_retries=3,
+            timeout=60.0,
+        )
 
     def generate_text(self, prompt: str) -> str:
         """Generate raw text from a prompt using OpenAI Chat Completions."""
@@ -56,11 +59,18 @@ class OpenAIClient:
                 model=self.model,
                 messages=[
                     {
+                        "role": "system",
+                        "content": "Always reply with valid JSON only.",
+                    },
+                    {
                         "role": "user",
                         "content": prompt,
                     }
                 ],
-                temperature=0.8,
+                temperature=0.3,
+                max_tokens=6500,
+                response_format={"type": "json_object"},
+                timeout=60.0,
             )
         except OpenAIError as exc:
             raise RuntimeError(
