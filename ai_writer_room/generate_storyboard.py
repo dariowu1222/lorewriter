@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Literal
 
 
 PACKAGE_PARENT = Path(__file__).resolve().parent.parent
@@ -15,11 +15,19 @@ if str(PACKAGE_PARENT) not in sys.path:
 
 from ai_writer_room.config import DEFAULT_MODEL
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
-from ai_writer_room.generator.api_client import OpenAIClient
 from ai_writer_room.generator.json_parser import StoryboardJsonParser
+from ai_writer_room.generator.model_provider import (
+    LOCAL_PROVIDER_MODEL,
+    BaseModelProvider,
+    LocalModelProvider,
+    OpenAIModelProvider,
+)
 from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
 from ai_writer_room.schemas.storyboard_schema import Storyboard
+
+
+ProviderName = Literal["mock", "openai", "local"]
 
 
 def generate_storyboard(
@@ -46,17 +54,55 @@ def generate_storyboard_from_api(
     model: str = DEFAULT_MODEL,
 ) -> Storyboard:
     """Generate a storyboard through OpenAI and parse it into the schema."""
+    return generate_storyboard_from_provider(
+        provider_name="openai",
+        sub_genre=sub_genre,
+        output_path=output_path,
+        duration_sec=duration_sec,
+        model=model,
+    )
+
+
+def generate_storyboard_from_provider(
+    provider_name: ProviderName,
+    sub_genre: str,
+    output_path: Path | None = None,
+    duration_sec: int = 180,
+    model: str | None = None,
+) -> Storyboard:
+    """Generate a storyboard with the selected provider."""
+    if provider_name == "mock":
+        return generate_storyboard(
+            sub_genre=sub_genre,
+            output_path=output_path,
+            duration_sec=duration_sec,
+        )
+
     prompt = PromptBuilder().build_rule_horror_prompt(
         sub_genre=sub_genre,
         duration_sec=duration_sec,
     )
-    raw_text = OpenAIClient(model=model).generate_text(prompt)
+    provider = build_model_provider(provider_name=provider_name, model=model)
+    raw_text = provider.generate_text(prompt)
     storyboard = StoryboardJsonParser().parse_storyboard(raw_text)
 
     if output_path is not None:
         write_storyboard_json(storyboard=storyboard, output_path=output_path)
 
     return storyboard
+
+
+def build_model_provider(
+    provider_name: ProviderName,
+    model: str | None = None,
+) -> BaseModelProvider:
+    """Create a model provider for OpenAI or local generation."""
+    if provider_name == "openai":
+        return OpenAIModelProvider(model=model or DEFAULT_MODEL)
+    if provider_name == "local":
+        return LocalModelProvider(model=model or LOCAL_PROVIDER_MODEL)
+
+    raise ValueError(f"Unsupported model provider: {provider_name}")
 
 
 def write_storyboard_json(storyboard: Storyboard, output_path: Path) -> None:
@@ -84,9 +130,15 @@ def build_eval_output_path(output_path: Path) -> Path:
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments for mock storyboard generation."""
+    """Parse command line arguments for storyboard generation."""
     parser = argparse.ArgumentParser(
-        description="Generate a local mock rule horror storyboard JSON.",
+        description="Generate a rule horror storyboard JSON.",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["mock", "openai", "local"],
+        default="mock",
+        help="Generation provider. Default: mock.",
     )
     parser.add_argument(
         "--sub-genre",
@@ -114,19 +166,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--use-api",
         action="store_true",
-        help="Generate storyboard with OpenAI instead of local mock data.",
+        help="Legacy alias for --provider openai.",
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help=f"OpenAI model to use with --use-api. Default: {DEFAULT_MODEL}.",
+        default=None,
+        help=(
+            "Model for openai/local providers. Defaults: "
+            f"openai={DEFAULT_MODEL}, local={LOCAL_PROVIDER_MODEL}."
+        ),
     )
     parser.add_argument(
         "--print-prompt",
         action="store_true",
-        help="Print the assembled rule horror prompt without calling an API.",
+        help="Print the assembled rule horror prompt without calling a model.",
     )
     return parser.parse_args()
+
+
+def resolve_provider_name(args: argparse.Namespace) -> ProviderName:
+    """Resolve provider selection, including the legacy --use-api alias."""
+    if args.use_api:
+        return "openai"
+    return args.provider
 
 
 def main() -> None:
@@ -141,29 +203,27 @@ def main() -> None:
         print(prompt)
         return
 
-    if args.use_api:
-        try:
-            storyboard = generate_storyboard_from_api(
-                sub_genre=args.sub_genre,
-                duration_sec=args.duration,
-                output_path=args.output,
-                model=args.model,
-            )
-        except (RuntimeError, ValueError) as exc:
-            print(
-                f"API generation failed ({exc.__class__.__name__}): {exc}",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from None
+    provider_name = resolve_provider_name(args)
 
-        print(f"API storyboard written to: {args.output}")
-    else:
-        storyboard = generate_storyboard(
+    try:
+        storyboard = generate_storyboard_from_provider(
+            provider_name=provider_name,
             sub_genre=args.sub_genre,
             duration_sec=args.duration,
             output_path=args.output,
+            model=args.model,
         )
-        print(f"Mock storyboard written to: {args.output}")
+    except (RuntimeError, ValueError) as exc:
+        print(
+            (
+                f"Generation failed for provider '{provider_name}' "
+                f"({exc.__class__.__name__}): {exc}"
+            ),
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
+
+    print(f"{provider_name.capitalize()} storyboard written to: {args.output}")
 
     if args.run_eval:
         eval_result = StoryboardEvaluator().evaluate(storyboard)
@@ -174,3 +234,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

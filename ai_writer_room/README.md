@@ -1,17 +1,19 @@
 # AI Writer Room v0.1
 
-AI Writer Room v0.1 是一個可擴充的 AI 敘事系統工程骨架。當前版本支援本地 mock storyboard JSON 輸出、本地 evaluator、prompt template 組裝，以及可選的 OpenAI API 生成模式。
+AI Writer Room v0.1 是一個可擴充的 AI 敘事系統工程骨架。當前版本支援本地 mock storyboard JSON 輸出、本地 evaluator、prompt template 組裝，以及 mock / OpenAI / local 三種 model provider。
 
-目前不實作 auto-fix，OpenAI API 模式只負責生成 raw text、解析成 `Storyboard` schema，並輸出 JSON。
+目前不實作 auto-fix。OpenAI 與 local provider 都只負責生成 raw text、解析成 `Storyboard` schema，並輸出 JSON。
 
 ## Current Scope
 
 - Python 3.11+
 - 3 分鐘規則怪談 storyboard JSON
 - 本地 mock data 產生器
+- Model Provider 抽象層：`mock` / `openai` / `local`
 - 本地 RuleChecker / ForbiddenWordChecker / StoryboardEvaluator
 - PromptBuilder 與 prompt templates
-- 可選 OpenAI API 生成模式
+- OpenAI API 生成模式
+- OpenAI-compatible local server 生成模式
 - CLI/script 操作
 - Pydantic schema
 - pathlib output handling
@@ -35,16 +37,13 @@ ai_writer_room/
 │   ├── __init__.py
 │   ├── api_client.py
 │   ├── json_parser.py
+│   ├── model_provider.py
 │   ├── prompt_builder.py
 │   ├── rule_engine.py
 │   ├── scene_generator.py
 │   └── story_planner.py
 ├── logs/
 ├── memory/
-│   ├── __init__.py
-│   ├── foreshadow_tracker.py
-│   ├── memory_summary.py
-│   └── story_bible.py
 ├── output/
 ├── prompts/
 │   ├── auto_fix.tmpl
@@ -75,17 +74,10 @@ OpenAI API key 讀取順序：
 C:\Users\p0989\Desktop\claude floder\claude floder.openai_api_key
 ```
 
-模型預設值：
+OpenAI provider 的預設模型：
 
 ```text
 gpt-4o-mini
-```
-
-也可以用環境變數覆蓋：
-
-```bash
-set OPENAI_API_KEY=your_api_key_here
-set DEFAULT_MODEL=gpt-4o-mini
 ```
 
 安全注意事項：
@@ -96,18 +88,67 @@ set DEFAULT_MODEL=gpt-4o-mini
 - `output/` 與 `logs/` 不應保存 API key。
 - CLI 不會印出 API key。
 
+## Providers
+
+`--provider mock`
+
+- 預設模式。
+- 不呼叫任何模型。
+- 使用 `generator/story_planner.py` 產生固定 12 scenes mock storyboard。
+- 適合本地開發、schema 測試、evaluator 測試。
+
+`--provider openai`
+
+- 使用 `OpenAIModelProvider`。
+- 包裝既有 `OpenAIClient`。
+- 需要 OpenAI API key。
+- 預設模型使用 `config.DEFAULT_MODEL`，目前是 `gpt-4o-mini`。
+
+`--provider local`
+
+- 使用 `LocalModelProvider`。
+- 支援本地 OpenAI-compatible API。
+- 預設 base URL：
+
+```text
+http://localhost:11434/v1
+```
+
+- 預設模型：
+
+```text
+qwen2.5:7b
+```
+
+- 預設 api_key 使用 placeholder：
+
+```text
+ollama
+```
+
+- 需要本機已啟動相容 OpenAI API 的服務，例如 Ollama OpenAI-compatible endpoint。
+
+`--use-api`
+
+- legacy alias。
+- 等同於：
+
+```bash
+--provider openai
+```
+
 ## Usage
 
 Mock storyboard generation:
 
 ```bash
-python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json
+python generate_storyboard.py --provider mock --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json
 ```
 
 Mock generation with local evaluator:
 
 ```bash
-python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval
+python generate_storyboard.py --provider mock --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval
 ```
 
 Print the assembled rule horror prompt only:
@@ -116,16 +157,22 @@ Print the assembled rule horror prompt only:
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --print-prompt
 ```
 
-OpenAI API generation:
+OpenAI provider:
 
 ```bash
-python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --use-api --model gpt-4o-mini --output output/storyboard_api.json
+python generate_storyboard.py --provider openai --sub-genre 地鐵末班車 --duration 180 --model gpt-4o-mini --output output/storyboard_openai.json --eval
 ```
 
-OpenAI API generation with local evaluator:
+Legacy OpenAI alias:
 
 ```bash
-python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --use-api --model gpt-4o-mini --output output/storyboard_api.json --eval
+python generate_storyboard.py --use-api --sub-genre 地鐵末班車 --duration 180 --model gpt-4o-mini --output output/storyboard_openai.json --eval
+```
+
+Local provider:
+
+```bash
+python generate_storyboard.py --provider local --sub-genre 地鐵末班車 --duration 180 --model qwen2.5:7b --output output/storyboard_local.json --eval
 ```
 
 ## Outputs
@@ -134,14 +181,16 @@ Storyboard JSON:
 
 ```text
 output/storyboard_mock.json
-output/storyboard_api.json
+output/storyboard_openai.json
+output/storyboard_local.json
 ```
 
 Evaluator JSON:
 
 ```text
 output/storyboard_mock.eval.json
-output/storyboard_api.eval.json
+output/storyboard_openai.eval.json
+output/storyboard_local.eval.json
 ```
 
 JSON output uses:
@@ -151,6 +200,7 @@ JSON output uses:
 
 ## Module Responsibilities
 
+- `generator/model_provider.py`: Base provider interface plus OpenAI and local providers.
 - `generator/api_client.py`: OpenAI client wrapper. It returns raw text only and does not parse JSON.
 - `generator/json_parser.py`: Extracts JSON from raw model output and validates it as `Storyboard`.
 - `generator/prompt_builder.py`: Builds rule horror, evaluator, and auto-fix prompts from templates.
