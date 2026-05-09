@@ -13,7 +13,10 @@ PACKAGE_PARENT = Path(__file__).resolve().parent.parent
 if str(PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_PARENT))
 
+from ai_writer_room.config import DEFAULT_MODEL
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
+from ai_writer_room.generator.api_client import OpenAIClient
+from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
 from ai_writer_room.schemas.storyboard_schema import Storyboard
@@ -29,6 +32,26 @@ def generate_storyboard(
         sub_genre=sub_genre,
         duration_sec=duration_sec,
     )
+
+    if output_path is not None:
+        write_storyboard_json(storyboard=storyboard, output_path=output_path)
+
+    return storyboard
+
+
+def generate_storyboard_from_api(
+    sub_genre: str,
+    output_path: Path | None = None,
+    duration_sec: int = 180,
+    model: str = DEFAULT_MODEL,
+) -> Storyboard:
+    """Generate a storyboard through OpenAI and parse it into the schema."""
+    prompt = PromptBuilder().build_rule_horror_prompt(
+        sub_genre=sub_genre,
+        duration_sec=duration_sec,
+    )
+    raw_text = OpenAIClient(model=model).generate_text(prompt)
+    storyboard = StoryboardJsonParser().parse_storyboard(raw_text)
 
     if output_path is not None:
         write_storyboard_json(storyboard=storyboard, output_path=output_path)
@@ -89,6 +112,16 @@ def parse_args() -> argparse.Namespace:
         help="Run local evaluator and write a .eval.json file.",
     )
     parser.add_argument(
+        "--use-api",
+        action="store_true",
+        help="Generate storyboard with OpenAI instead of local mock data.",
+    )
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"OpenAI model to use with --use-api. Default: {DEFAULT_MODEL}.",
+    )
+    parser.add_argument(
         "--print-prompt",
         action="store_true",
         help="Print the assembled rule horror prompt without calling an API.",
@@ -108,12 +141,29 @@ def main() -> None:
         print(prompt)
         return
 
-    storyboard = generate_storyboard(
-        sub_genre=args.sub_genre,
-        duration_sec=args.duration,
-        output_path=args.output,
-    )
-    print(f"Mock storyboard written to: {args.output}")
+    if args.use_api:
+        try:
+            storyboard = generate_storyboard_from_api(
+                sub_genre=args.sub_genre,
+                duration_sec=args.duration,
+                output_path=args.output,
+                model=args.model,
+            )
+        except (RuntimeError, ValueError) as exc:
+            print(
+                f"API generation failed ({exc.__class__.__name__}): {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from None
+
+        print(f"API storyboard written to: {args.output}")
+    else:
+        storyboard = generate_storyboard(
+            sub_genre=args.sub_genre,
+            duration_sec=args.duration,
+            output_path=args.output,
+        )
+        print(f"Mock storyboard written to: {args.output}")
 
     if args.run_eval:
         eval_result = StoryboardEvaluator().evaluate(storyboard)
@@ -124,4 +174,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

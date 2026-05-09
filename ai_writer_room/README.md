@@ -1,18 +1,20 @@
 # AI Writer Room v0.1
 
-AI Writer Room v0.1 是一個可擴充的 AI 敘事系統工程骨架。當前版本先支援「本地假資料 storyboard JSON 輸出」，暫不呼叫 OpenAI API，也暫不實作 evaluator。
+AI Writer Room v0.1 是一個可擴充的 AI 敘事系統工程骨架。當前版本支援本地 mock storyboard JSON 輸出、本地 evaluator、prompt template 組裝，以及可選的 OpenAI API 生成模式。
 
-本專案目標是先把長篇 AI Writer Room 的乾淨架構打好，後續可逐步接上 Story Bible、Arc Planner、Foreshadow System、Memory Summary、Evaluator、Auto Fix，以及 30-60 分鐘長篇故事生成。
+目前不實作 auto-fix，OpenAI API 模式只負責生成 raw text、解析成 `Storyboard` schema，並輸出 JSON。
 
 ## Current Scope
 
 - Python 3.11+
 - 3 分鐘規則怪談 storyboard JSON
 - 本地 mock data 產生器
+- 本地 RuleChecker / ForbiddenWordChecker / StoryboardEvaluator
+- PromptBuilder 與 prompt templates
+- 可選 OpenAI API 生成模式
 - CLI/script 操作
 - Pydantic schema
 - pathlib output handling
-- 不呼叫 OpenAI API
 
 ## Folder Structure
 
@@ -32,6 +34,7 @@ ai_writer_room/
 ├── generator/
 │   ├── __init__.py
 │   ├── api_client.py
+│   ├── json_parser.py
 │   ├── prompt_builder.py
 │   ├── rule_engine.py
 │   ├── scene_generator.py
@@ -53,84 +56,120 @@ ai_writer_room/
 └── tests/
 ```
 
-## Usage
+## Setup
 
-先安裝依賴：
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-在 `ai_writer_room/` 目錄內執行 mock storyboard 生成：
+## API Key
+
+OpenAI API key 讀取順序：
+
+1. 環境變數 `OPENAI_API_KEY`
+2. 本機檔案：
+
+```text
+C:\Users\p0989\Desktop\claude floder\claude floder.openai_api_key
+```
+
+模型預設值：
+
+```text
+gpt-4o-mini
+```
+
+也可以用環境變數覆蓋：
+
+```bash
+set OPENAI_API_KEY=your_api_key_here
+set DEFAULT_MODEL=gpt-4o-mini
+```
+
+安全注意事項：
+
+- 不要 commit API key。
+- 不要把 `.env` commit。
+- 不要把 `.openai_api_key` 或任何 `*.openai_api_key` 檔案 commit。
+- `output/` 與 `logs/` 不應保存 API key。
+- CLI 不會印出 API key。
+
+## Usage
+
+Mock storyboard generation:
 
 ```bash
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json
 ```
 
-如果要同時執行本地 evaluator：
+Mock generation with local evaluator:
 
 ```bash
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval
 ```
 
-如果只要預覽未來 LLM 會使用的規則怪談 prompt：
+Print the assembled rule horror prompt only:
 
 ```bash
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --print-prompt
 ```
 
-輸出檔會建立在：
+OpenAI API generation:
+
+```bash
+python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --use-api --model gpt-4o-mini --output output/storyboard_api.json
+```
+
+OpenAI API generation with local evaluator:
+
+```bash
+python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --use-api --model gpt-4o-mini --output output/storyboard_api.json --eval
+```
+
+## Outputs
+
+Storyboard JSON:
 
 ```text
 output/storyboard_mock.json
+output/storyboard_api.json
 ```
 
-使用 `--eval` 時會額外建立：
+Evaluator JSON:
 
 ```text
 output/storyboard_mock.eval.json
+output/storyboard_api.eval.json
 ```
 
-輸出的 JSON 使用：
+JSON output uses:
 
 - `ensure_ascii=False`
 - `indent=2`
-- 固定 12 個 scenes
-- `model = local-mock-v0.1`
-- `cost_usd = 0.0`
-
-目前 evaluator 會檢查：
-
-- 所有 mock rules 是否至少被一個 scene 的 `rule_refs` 使用
-- `narration_zh` 與 `dialogue_lines[].text` 是否命中禁忌詞
-
-目前 prompt builder 會組裝：
-
-- `prompts/rule_horror.tmpl`
-- `prompts/evaluator.tmpl`
-- `prompts/auto_fix.tmpl`
-
-這些模板只作為未來 LLM 呼叫前的 prompt 組裝層，v0.1 目前不會呼叫 OpenAI API。
 
 ## Module Responsibilities
 
-- `generator/`: story planning、prompt 組裝、rule engine、scene generation、model provider 邊界。
-- `schemas/`: storyboard 與 scene 的 Pydantic JSON contract。
-- `evaluator/`: 未來接 pacing、rule、forbidden word 與品質檢查。
-- `memory/`: 未來接 Story Bible、memory summary、foreshadow tracking。
-- `prompts/`: generation、evaluator、auto-fix prompt templates。
-- `output/`: storyboard JSON 輸出。
-- `logs/`: 未來 runtime logs。
-- `tests/`: 未來測試。
+- `generator/api_client.py`: OpenAI client wrapper. It returns raw text only and does not parse JSON.
+- `generator/json_parser.py`: Extracts JSON from raw model output and validates it as `Storyboard`.
+- `generator/prompt_builder.py`: Builds rule horror, evaluator, and auto-fix prompts from templates.
+- `generator/story_planner.py`: Local mock storyboard generation.
+- `generator/rule_engine.py`: Mock rules and rule reference checks.
+- `evaluator/`: Local rule and forbidden-word evaluation.
+- `schemas/`: Pydantic contracts for scene and storyboard JSON.
+- `prompts/`: Prompt templates for generation, evaluator, and future auto-fix.
+- `output/`: Local generated JSON files.
+- `logs/`: Future runtime logs.
 
 ## Roadmap
 
-1. 完成本地 mock storyboard JSON 輸出。
-2. 加入 template loading 與 prompt rendering。
-3. 在 `APIClient` 後方接入 OpenAI API。
-4. 產生 schema-valid 的規則怪談 storyboard。
-5. 加入 evaluator：pacing、rules、forbidden words、clarity。
-6. 加入 auto-fix loop。
-7. 加入 Story Bible、Memory Summary、Foreshadow Tracker。
-8. 擴展到 30-60 分鐘 long-form story generation。
-9. 加入 render/export adapter，支援影片、旁白、腳本等下游流程。
+1. Keep mock generation as the safe local fallback.
+2. Improve prompt templates with stronger JSON constraints.
+3. Harden API JSON parsing and add retry/fix strategy.
+4. Add evaluator coverage for pacing, clarity, and payoff quality.
+5. Add auto-fix loop.
+6. Add Story Bible, Memory Summary, and Foreshadow Tracker.
+7. Extend to 30-60 minute long-form story generation.
+8. Add render/export adapters for video, narration, and script workflows.
+
