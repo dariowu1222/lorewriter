@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
+from ai_writer_room.generator.rule_engine import RuleEngine
 from ai_writer_room.schemas.scene_schema import DialogueLine, Scene
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -22,12 +23,6 @@ MOCK_SCENE_FUNCTIONS: tuple[str, ...] = (
     "真相接近",
     "主反轉",
     "尾刀",
-)
-
-MOCK_RULES: tuple[str, ...] = (
-    "R01: 聽到廣播念出自己的名字時，不可以回頭。",
-    "R02: 如果車窗映出空座位上的人影，必須在下一站前閉眼。",
-    "R03: 末班車抵達不存在的月台時，不可以跟任何人下車。",
 )
 
 
@@ -59,18 +54,20 @@ def build_mock_rule_horror_storyboard(
     duration_sec: int = 180,
 ) -> Storyboard:
     """Build a local mock rule horror storyboard without calling an AI API."""
+    rule_engine = RuleEngine()
+    rules = rule_engine.build_mock_rules(sub_genre=sub_genre, rules_count=5)
     target_duration_sec = max(duration_sec, len(MOCK_SCENE_FUNCTIONS))
     time_ranges = _build_scene_time_ranges(
         target_duration_sec,
         len(MOCK_SCENE_FUNCTIONS),
     )
     moods = (
-        "日常不安",
+        "日常偏移",
         "冷靜警告",
         "壓抑驗證",
         "低頻威脅",
         "異常滲入",
-        "規則失效",
+        "規則失衡",
         "疑心升高",
         "認知翻轉",
         "秩序崩壞",
@@ -84,14 +81,14 @@ def build_mock_rule_horror_storyboard(
         ["R01"],
         ["R01"],
         ["R02"],
-        ["R01", "R02"],
-        ["R01", "R02"],
-        ["R02"],
         ["R03"],
-        ["R01", "R02", "R03"],
-        ["R03"],
-        ["R01", "R03"],
+        ["R01", "R04"],
         ["R02"],
+        ["R05"],
+        ["R03", "R04", "R05"],
+        ["R04"],
+        ["R01", "R05"],
+        ["R02", "R03"],
     )
     foreshadow_refs_by_scene = (
         ["F01"],
@@ -120,17 +117,17 @@ def build_mock_rule_horror_storyboard(
                 bgm_intensity=bgm_intensities[index],
                 time_in_story=time_ranges[index],
                 narration_zh=(
-                    f"{scene_id}「{scene_function}」：在{sub_genre}的怪談框架中，"
-                    "主角逐步理解規則、誤判規則，最後被規則反咬。"
+                    f"{scene_id}「{scene_function}」：在{sub_genre}的規則框架中，"
+                    "主角逐步理解提示、誤判限制，最後被自己的選擇推回核心陷阱。"
                 ),
                 dialogue_lines=[
                     DialogueLine(
                         speaker="主角",
-                        text=f"這不是普通的{sub_genre}，規則好像正在看著我。",
+                        text=f"這班{sub_genre}的規則不是提醒，它像是在安排我的下一步。",
                     ),
                     DialogueLine(
                         speaker="陌生人",
-                        text="你只要照做，就還有機會回到原本的地方。",
+                        text="照著紙上寫的做，至少你還能保留選擇。",
                     ),
                 ],
                 rule_refs=list(rule_refs_by_scene[index]),
@@ -147,11 +144,11 @@ def build_mock_rule_horror_storyboard(
         cost_usd=0.0,
         prologue=(
             f"主角搭上與{sub_genre}相關的最後一班路線，"
-            "發現車廂裡貼著一張只給活人看的規則。"
+            "發現車廂裡貼著一張只給乘客看的規則表。"
         ),
         story_bible={
             "setting": sub_genre,
-            "core_rules": list(MOCK_RULES),
+            "rules": [asdict(rule) for rule in rules],
             "protagonist": "一名錯過正常班次的普通上班族",
             "threat": "會利用規則漏洞誘導乘客犯錯的異常空間",
         },
@@ -208,3 +205,4 @@ class StoryPlanner:
         """Allocate target seconds for each planned story segment."""
         # TODO: Map target runtime into setup, escalation, reveal, and ending.
         pass
+

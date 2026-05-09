@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ai_writer_room.schemas.storyboard_schema import StoryboardDraft
+from ai_writer_room.evaluator.forbidden_word_checker import ForbiddenWordChecker
+from ai_writer_room.evaluator.rule_checker import RuleChecker
+from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
 @dataclass(slots=True)
@@ -18,12 +20,25 @@ class EvaluationResult:
 
 @dataclass(slots=True)
 class StoryboardEvaluator:
-    """Run all storyboard checks and prepare feedback."""
+    """Run local rule and forbidden-word checks for a storyboard."""
 
-    def evaluate(self, storyboard: StoryboardDraft) -> EvaluationResult:
+    rule_checker: RuleChecker = field(default_factory=RuleChecker)
+    forbidden_word_checker: ForbiddenWordChecker = field(
+        default_factory=ForbiddenWordChecker,
+    )
+
+    def evaluate(self, storyboard: Storyboard) -> dict[str, object]:
         """Evaluate a generated storyboard draft."""
-        # TODO: Combine pacing, rule, forbidden-word, and future quality checks.
-        pass
+        rule_check = self.rule_checker.check(storyboard)
+        forbidden_word_check = self.forbidden_word_checker.check_storyboard(storyboard)
+
+        return {
+            "passed": bool(
+                rule_check.get("passed") and forbidden_word_check.get("passed")
+            ),
+            "rule_check": rule_check,
+            "forbidden_word_check": forbidden_word_check,
+        }
 
     def summarize_findings(self, result: EvaluationResult) -> str:
         """Summarize evaluator findings for CLI output or auto-fix."""

@@ -6,12 +6,14 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 
 PACKAGE_PARENT = Path(__file__).resolve().parent.parent
 if str(PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_PARENT))
 
+from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
 from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -35,16 +37,26 @@ def generate_storyboard(
 
 def write_storyboard_json(storyboard: Storyboard, output_path: Path) -> None:
     """Write a storyboard as UTF-8 JSON."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     if hasattr(storyboard, "model_dump"):
         payload = storyboard.model_dump(mode="json")
     else:
         payload = storyboard.dict()
 
+    write_json(payload=payload, output_path=output_path)
+
+
+def write_json(payload: dict[str, Any], output_path: Path) -> None:
+    """Write a JSON payload with stable local formatting."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def build_eval_output_path(output_path: Path) -> Path:
+    """Build the evaluator output path next to the storyboard JSON."""
+    return output_path.with_suffix(".eval.json")
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,19 +81,32 @@ def parse_args() -> argparse.Namespace:
         default=Path("output/storyboard_mock.json"),
         help="Output JSON path.",
     )
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        dest="run_eval",
+        help="Run local evaluator and write a .eval.json file.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     """Run storyboard generation from a script entry point."""
     args = parse_args()
-    generate_storyboard(
+    storyboard = generate_storyboard(
         sub_genre=args.sub_genre,
         duration_sec=args.duration,
         output_path=args.output,
     )
     print(f"Mock storyboard written to: {args.output}")
 
+    if args.run_eval:
+        eval_result = StoryboardEvaluator().evaluate(storyboard)
+        eval_output_path = build_eval_output_path(args.output)
+        write_json(payload=eval_result, output_path=eval_output_path)
+        print(f"Evaluation written to: {eval_output_path}")
+
 
 if __name__ == "__main__":
     main()
+

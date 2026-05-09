@@ -67,10 +67,22 @@ pip install -r requirements.txt
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json
 ```
 
+如果要同時執行本地 evaluator：
+
+```bash
+python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval
+```
+
 輸出檔會建立在：
 
 ```text
 output/storyboard_mock.json
+```
+
+使用 `--eval` 時會額外建立：
+
+```text
+output/storyboard_mock.eval.json
 ```
 
 輸出的 JSON 使用：
@@ -80,6 +92,11 @@ output/storyboard_mock.json
 - 固定 12 個 scenes
 - `model = local-mock-v0.1`
 - `cost_usd = 0.0`
+
+目前 evaluator 會檢查：
+
+- 所有 mock rules 是否至少被一個 scene 的 `rule_refs` 使用
+- `narration_zh` 與 `dialogue_lines[].text` 是否命中禁忌詞
 
 ## Module Responsibilities
 
@@ -103,4 +120,3 @@ output/storyboard_mock.json
 7. 加入 Story Bible、Memory Summary、Foreshadow Tracker。
 8. 擴展到 30-60 分鐘 long-form story generation。
 9. 加入 render/export adapter，支援影片、旁白、腳本等下游流程。
-
