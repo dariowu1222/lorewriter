@@ -29,10 +29,12 @@ from ai_writer_room.generator.model_provider import (
 from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.run_logger import RunLogger
 from ai_writer_room.generator.story_planner import (
+    build_initial_arc_plan,
     build_initial_memory_summary,
     build_initial_story_bible,
     build_mock_rule_horror_storyboard,
 )
+from ai_writer_room.memory.arc_planner import ArcPlan
 from ai_writer_room.memory.foreshadow_tracker import (
     ForeshadowItem,
     ForeshadowTracker,
@@ -332,24 +334,32 @@ def require_sub_genre(sub_genre: str | None) -> str:
     return sub_genre
 
 
-def initialize_story_memory(storyboard: Storyboard) -> dict[str, bool | int]:
+def initialize_story_memory(storyboard: Storyboard) -> dict[str, bool | int | str]:
     """Ensure long-form memory scaffolding exists on a storyboard."""
     if not _has_story_bible(storyboard.story_bible):
         storyboard.story_bible = build_initial_story_bible(storyboard)
+    ensure_story_bible_arc_metadata(storyboard)
 
     if not _has_memory_summary(storyboard.memory_summary):
         storyboard.memory_summary = build_initial_memory_summary(storyboard)
+    ensure_memory_summary_arc_metadata(storyboard)
 
     if not storyboard.foreshadowing:
         storyboard.foreshadowing = ForeshadowTracker().build_initial_foreshadowing(
             storyboard,
         )
 
+    if not _has_arc_plan(storyboard.arc_plan):
+        storyboard.arc_plan = build_initial_arc_plan(storyboard)
+
     return {
         "story_bible_initialized": _has_story_bible(storyboard.story_bible),
         "memory_summary_initialized": _has_memory_summary(storyboard.memory_summary),
         "foreshadow_initialized": bool(storyboard.foreshadowing),
         "unresolved_foreshadow_count": count_unresolved_foreshadow(storyboard),
+        "arc_plan_initialized": _has_arc_plan(storyboard.arc_plan),
+        "arc_count": get_arc_count(storyboard),
+        "active_arc_id": get_active_arc_id(storyboard),
     }
 
 
@@ -371,6 +381,73 @@ def _has_memory_summary(value: MemorySummary | dict[Any, Any]) -> bool:
     return value is not None
 
 
+def _has_arc_plan(value: ArcPlan | dict[Any, Any] | None) -> bool:
+    """Return whether arc plan data is present and usable."""
+    if isinstance(value, ArcPlan):
+        return bool(value.arcs)
+    if isinstance(value, dict):
+        return bool(value.get("arcs"))
+    return False
+
+
+def ensure_story_bible_arc_metadata(storyboard: Storyboard) -> None:
+    """Fill missing Arc metadata on Story Bible values."""
+    if isinstance(storyboard.story_bible, StoryBible):
+        if not storyboard.story_bible.arc_summary:
+            storyboard.story_bible.arc_summary = (
+                "A01 世界建立啟動，主角正在接觸第一批規則。"
+            )
+        if not storyboard.story_bible.active_arc_id:
+            storyboard.story_bible.active_arc_id = "A01"
+        if not storyboard.story_bible.current_story_stage:
+            storyboard.story_bible.current_story_stage = "世界建立"
+        return
+
+    if isinstance(storyboard.story_bible, dict):
+        storyboard.story_bible.setdefault(
+            "arc_summary",
+            "A01 世界建立啟動，主角正在接觸第一批規則。",
+        )
+        storyboard.story_bible.setdefault("active_arc_id", "A01")
+        storyboard.story_bible.setdefault("current_story_stage", "世界建立")
+
+
+def ensure_memory_summary_arc_metadata(storyboard: Storyboard) -> None:
+    """Fill missing Arc metadata on Memory Summary values."""
+    active_foreshadow_ids = sorted(
+        {
+            foreshadow_ref
+            for scene in storyboard.scenes
+            for foreshadow_ref in scene.foreshadow_refs
+        }
+    )
+
+    if isinstance(storyboard.memory_summary, MemorySummary):
+        if not storyboard.memory_summary.current_arc_id:
+            storyboard.memory_summary.current_arc_id = "A01"
+        if not storyboard.memory_summary.current_arc_goal:
+            storyboard.memory_summary.current_arc_goal = (
+                "建立世界、主角處境與第一規則。"
+            )
+        if not storyboard.memory_summary.latest_payoff:
+            storyboard.memory_summary.latest_payoff = "尚未發生"
+        if not storyboard.memory_summary.active_foreshadow_ids:
+            storyboard.memory_summary.active_foreshadow_ids = active_foreshadow_ids
+        return
+
+    if isinstance(storyboard.memory_summary, dict):
+        storyboard.memory_summary.setdefault("current_arc_id", "A01")
+        storyboard.memory_summary.setdefault(
+            "current_arc_goal",
+            "建立世界、主角處境與第一規則。",
+        )
+        storyboard.memory_summary.setdefault("latest_payoff", "尚未發生")
+        storyboard.memory_summary.setdefault(
+            "active_foreshadow_ids",
+            active_foreshadow_ids,
+        )
+
+
 def count_unresolved_foreshadow(storyboard: Storyboard) -> int:
     """Count foreshadowing entries that still need payoff."""
     count = 0
@@ -386,6 +463,38 @@ def count_unresolved_foreshadow(storyboard: Storyboard) -> int:
             count += 1
 
     return count
+
+
+def get_arc_count(storyboard: Storyboard) -> int:
+    """Return the current arc count without exposing full arc content."""
+    if isinstance(storyboard.arc_plan, ArcPlan):
+        return len(storyboard.arc_plan.arcs)
+    if isinstance(storyboard.arc_plan, dict):
+        arcs = storyboard.arc_plan.get("arcs", [])
+        return len(arcs) if isinstance(arcs, list) else 0
+    return 0
+
+
+def get_active_arc_id(storyboard: Storyboard) -> str:
+    """Return the active arc id from Story Bible or Arc Plan metadata."""
+    if isinstance(storyboard.story_bible, StoryBible):
+        if storyboard.story_bible.active_arc_id:
+            return storyboard.story_bible.active_arc_id
+    elif isinstance(storyboard.story_bible, dict):
+        active_arc_id = storyboard.story_bible.get("active_arc_id")
+        if active_arc_id:
+            return str(active_arc_id)
+
+    if isinstance(storyboard.arc_plan, ArcPlan):
+        for arc in storyboard.arc_plan.arcs:
+            if arc.status == "active":
+                return arc.id
+    elif isinstance(storyboard.arc_plan, dict):
+        for arc in storyboard.arc_plan.get("arcs", []):
+            if isinstance(arc, dict) and arc.get("status") == "active":
+                return str(arc.get("id", ""))
+
+    return ""
 
 
 def utc_now_text() -> str:
@@ -406,7 +515,7 @@ def build_generation_record(
     final_eval_passed: bool | None,
     forbidden_words_source: str,
     cost_ref: dict[str, float | int],
-    memory_init_result: dict[str, bool | int],
+    memory_init_result: dict[str, bool | int | str],
 ) -> dict[str, Any]:
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
@@ -452,6 +561,12 @@ def build_generation_record(
             "unresolved_foreshadow_count",
             0,
         ),
+        "arc_plan_initialized": memory_init_result.get(
+            "arc_plan_initialized",
+            False,
+        ),
+        "arc_count": memory_init_result.get("arc_count", 0),
+        "active_arc_id": memory_init_result.get("active_arc_id", ""),
     }
 
 
@@ -612,11 +727,14 @@ def main() -> None:
         "estimated_input_tokens": 0,
         "estimated_output_tokens": 0,
     }
-    memory_init_result: dict[str, bool | int] = {
+    memory_init_result: dict[str, bool | int | str] = {
         "story_bible_initialized": False,
         "memory_summary_initialized": False,
         "foreshadow_initialized": False,
         "unresolved_foreshadow_count": 0,
+        "arc_plan_initialized": False,
+        "arc_count": 0,
+        "active_arc_id": "",
     }
 
     try:

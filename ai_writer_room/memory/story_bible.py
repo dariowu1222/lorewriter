@@ -44,6 +44,9 @@ class StoryBible:
     world_summary: str
     tone_keywords: list[str] = field(default_factory=list)
     core_theme: str = ""
+    arc_summary: str = ""
+    active_arc_id: str = ""
+    current_story_stage: str = ""
     characters: list[CharacterProfile] = field(default_factory=list)
     world_rules: list[WorldRule] = field(default_factory=list)
     major_questions: list[str] = field(default_factory=list)
@@ -63,6 +66,9 @@ class StoryBibleRepository:
             world_summary=payload["world_summary"],
             tone_keywords=list(payload.get("tone_keywords", [])),
             core_theme=str(payload.get("core_theme", "")),
+            arc_summary=str(payload.get("arc_summary", "")),
+            active_arc_id=str(payload.get("active_arc_id", "")),
+            current_story_stage=str(payload.get("current_story_stage", "")),
             characters=[
                 CharacterProfile(**character)
                 for character in payload.get("characters", [])
@@ -79,4 +85,3 @@ class StoryBibleRepository:
             json.dumps(asdict(bible), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-

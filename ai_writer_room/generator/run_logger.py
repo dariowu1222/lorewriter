@@ -34,6 +34,9 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "memory_summary_initialized",
     "foreshadow_initialized",
     "unresolved_foreshadow_count",
+    "arc_plan_initialized",
+    "arc_count",
+    "active_arc_id",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (

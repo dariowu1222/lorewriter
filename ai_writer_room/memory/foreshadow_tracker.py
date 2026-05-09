@@ -17,6 +17,7 @@ class ForeshadowItem:
     setup_scene_id: str
     setup_text: str
     expected_payoff_scene_id: str
+    planned_payoff_arc_id: str = "A06"
     payoff_scene_id: str | None = None
     payoff_text: str | None = None
     status: str = "setup_only"
@@ -48,6 +49,9 @@ class ForeshadowTracker:
                         expected_payoff_scene_id=self._expected_payoff_scene_id(
                             foreshadow_id,
                         ),
+                        planned_payoff_arc_id=self._planned_payoff_arc_id(
+                            foreshadow_id,
+                        ),
                     )
                 )
 
@@ -61,6 +65,7 @@ class ForeshadowTracker:
                         setup_scene_id=fallback_scene_id,
                         setup_text=f"Fallback foreshadow setup F{next_index:02d}",
                         expected_payoff_scene_id="S12",
+                        planned_payoff_arc_id="A06",
                     )
                 )
 
@@ -83,3 +88,12 @@ class ForeshadowTracker:
         }
         return payoff_map.get(foreshadow_id, "S12")
 
+    def _planned_payoff_arc_id(self, foreshadow_id: str) -> str:
+        """Map foreshadow ids to simple long-form payoff arcs."""
+        payoff_arc_map = {
+            "F01": "A05",
+            "F02": "A04",
+            "F03": "A06",
+            "F04": "A05",
+        }
+        return payoff_arc_map.get(foreshadow_id, "A06")

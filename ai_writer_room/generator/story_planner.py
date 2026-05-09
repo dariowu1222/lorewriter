@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from ai_writer_room.generator.rule_engine import RuleEngine
+from ai_writer_room.memory.arc_planner import ArcPhase, ArcPlan
 from ai_writer_room.memory.foreshadow_tracker import ForeshadowTracker
 from ai_writer_room.memory.memory_summary import MemorySummary
 from ai_writer_room.memory.story_bible import (
@@ -67,18 +68,18 @@ def build_mock_rule_horror_storyboard(
         len(MOCK_SCENE_FUNCTIONS),
     )
     moods = (
-        "日常偏移",
-        "冷靜警告",
-        "壓抑驗證",
-        "低頻威脅",
-        "異常滲入",
-        "規則失衡",
-        "疑心升高",
+        "冷靜觀察",
+        "秩序壓迫",
+        "試探規則",
+        "資訊增加",
+        "異常逼近",
+        "邏輯打結",
+        "信任動搖",
         "認知翻轉",
-        "秩序崩壞",
-        "真相逼近",
-        "絕望揭露",
-        "餘韻反噬",
+        "世界失序",
+        "答案逼近",
+        "核心揭露",
+        "餘韻反咬",
     )
     bgm_intensities = (1, 1, 2, 2, 3, 3, 3, 4, 5, 4, 5, 2)
     rule_refs_by_scene = (
@@ -122,17 +123,17 @@ def build_mock_rule_horror_storyboard(
                 bgm_intensity=bgm_intensities[index],
                 time_in_story=time_ranges[index],
                 narration_zh=(
-                    f"{scene_id}「{scene_function}」：在{sub_genre}的規則框架中，"
-                    "主角逐步理解提示、誤判限制，最後被自己的選擇推回核心陷阱。"
+                    f"{scene_id}：我在{sub_genre}的規則裡前進，"
+                    f"這一幕負責{scene_function}，讓規則從文字變成代價。"
                 ),
                 dialogue_lines=[
                     DialogueLine(
-                        speaker="主角",
-                        text=f"這班{sub_genre}的規則不是提醒，它像是在安排我的下一步。",
+                        speaker="我",
+                        text=f"如果{sub_genre}的告示是真的，我現在只能照做。",
                     ),
                     DialogueLine(
-                        speaker="陌生人",
-                        text="照著紙上寫的做，至少你還能保留選擇。",
+                        speaker="廣播",
+                        text="請依照規則停留在原位，下一段行程將重新確認乘客身分。",
                     ),
                 ],
                 rule_refs=list(rule_refs_by_scene[index]),
@@ -148,19 +149,21 @@ def build_mock_rule_horror_storyboard(
         model="local-mock-v0.1",
         cost_usd=0.0,
         prologue=(
-            f"主角搭上與{sub_genre}相關的最後一班路線，"
-            "發現車廂裡貼著一張只給乘客看的規則表。"
+            f"我搭上{sub_genre}後，才發現車廂裡的告示不是提醒，"
+            "而是已經被驗證過的生存方式。"
         ),
         story_bible={},
         scenes=scenes,
         memory_summary={},
         foreshadowing=[],
+        arc_plan=None,
     )
     storyboard.story_bible = build_initial_story_bible(storyboard)
     storyboard.memory_summary = build_initial_memory_summary(storyboard)
     storyboard.foreshadowing = ForeshadowTracker().build_initial_foreshadowing(
         storyboard,
     )
+    storyboard.arc_plan = build_initial_arc_plan(storyboard)
     return storyboard
 
 
@@ -188,20 +191,23 @@ def build_initial_story_bible(storyboard: Storyboard) -> StoryBible:
     return StoryBible(
         title=storyboard.title,
         sub_genre=storyboard.sub_genre,
-        protagonist_name="主角",
+        protagonist_name="我",
         world_summary=(
-            f"{storyboard.sub_genre}被一套會誘導乘客犯錯的規則支配，"
-            "每條規則既像保護，也像篩選。"
+            f"{storyboard.sub_genre}是一個以公共秩序包裝生存條件的封閉空間，"
+            "規則會保護遵守者，也會標記違規者。"
         ),
-        tone_keywords=["規則怪談", "壓迫", "反轉", "日常崩壞"],
-        core_theme="真正危險的不是違規，而是不知道誰制定了規則。",
+        tone_keywords=["規則怪談", "壓迫", "反轉", "秩序失效"],
+        core_theme="當規則是真的，自由意志會變成最危險的錯覺。",
+        arc_summary="A01 世界建立啟動，主角正在接觸第一批規則。",
+        active_arc_id="A01",
+        current_story_stage="世界建立",
         characters=[
             CharacterProfile(
                 id="C01",
-                name="主角",
-                role="第一人稱敘事者",
-                traits=["謹慎", "疲憊", "願意驗證規則"],
-                secrets=["曾經看過相同的廣播詞"],
+                name="我",
+                role="第一人稱主角",
+                traits=["謹慎", "觀察力強", "會驗證規則"],
+                secrets=["曾經在類似規則中失去關鍵記憶"],
                 introduced_scene_id="S01",
                 status="active",
                 suspicion_level=3,
@@ -209,13 +215,13 @@ def build_initial_story_bible(storyboard: Storyboard) -> StoryBible:
         ],
         world_rules=world_rules,
         major_questions=[
-            "規則表是誰貼上的？",
-            "陌生人是否真的想救主角？",
-            "末班車的終點是否存在於現實？",
+            "規則是誰寫下的？",
+            "廣播中的管理者是否仍是人？",
+            "主角是否早已被納入規則系統？",
         ],
         hidden_truths=[
-            "規則可能不是保護乘客，而是在挑選能留下的人。",
-            "主角的記憶和廣播系統之間有未揭露的連結。",
+            "規則不是警告，而是空間維持自身的方法。",
+            "主角的選擇會決定下一版規則如何改寫。",
         ],
     )
 
@@ -229,6 +235,13 @@ def build_initial_memory_summary(storyboard: Storyboard) -> MemorySummary:
             for rule_ref in scene.rule_refs
         }
     )
+    active_foreshadow_ids = sorted(
+        {
+            foreshadow_ref
+            for scene in storyboard.scenes
+            for foreshadow_ref in scene.foreshadow_refs
+        }
+    )
     last_scene = storyboard.scenes[-1] if storyboard.scenes else None
     last_major_event = (
         f"{last_scene.id} {last_scene.function}" if last_scene else "尚未開始"
@@ -236,20 +249,112 @@ def build_initial_memory_summary(storyboard: Storyboard) -> MemorySummary:
 
     return MemorySummary(
         current_arc_summary=(
-            f"{storyboard.title}目前完成短篇 storyboard，主角已接觸規則、"
-            "驗證部分規則，並走向尾端反轉。"
+            f"{storyboard.title}目前完成短篇 storyboard 初始化，"
+            "長篇版本仍停留在 Arc 1 的世界建立階段。"
         ),
-        protagonist_goal="找出規則的來源，並離開異常空間。",
-        protagonist_status="仍在規則系統內，尚未確認是否能逃離。",
+        protagonist_goal="確認規則來源並找到離開封閉空間的方法。",
+        protagonist_status="仍能行動，但已被規則系統辨識。",
+        current_arc_id="A01",
+        current_arc_goal="建立世界、主角處境與第一規則。",
+        latest_payoff="尚未發生",
         known_rules=known_rules,
         unresolved_questions=[
-            "誰制定了規則？",
-            "陌生人的真實身分是什麼？",
-            "主角是否已經成為規則的一部分？",
+            "規則來源是否可信？",
+            "廣播背後的身分是什麼？",
+            "主角是否已經違反過真正的規則？",
         ],
+        active_foreshadow_ids=active_foreshadow_ids,
         current_threat_level=4,
-        emotional_curve="困惑 -> 警覺 -> 驗證 -> 失衡 -> 反轉",
+        emotional_curve="觀察 -> 試探 -> 懷疑 -> 翻轉 -> 餘韻",
         last_major_event=last_major_event,
+    )
+
+
+def build_initial_arc_plan(storyboard: Storyboard) -> ArcPlan:
+    """Build the fixed six-arc long-form structure for v0.1."""
+    arcs = [
+        ArcPhase(
+            id="A01",
+            name="世界建立",
+            purpose="建立主角處境、封閉空間、第一規則與基本代價。",
+            emotional_goal="讓觀眾理解表面秩序，同時感到規則正在收緊。",
+            threat_level=2,
+            target_scene_range="S01-S02",
+            setup_requirements=["主角進場", "第一規則", "空間限制"],
+            payoff_targets=[],
+            twist_type="無",
+            status="active",
+        ),
+        ArcPhase(
+            id="A02",
+            name="異常擴大",
+            purpose="驗證規則有效，擴大異常，安排第一個小 payoff。",
+            emotional_goal="把懷疑推向確認，讓主角開始依賴規則。",
+            threat_level=4,
+            target_scene_range="S03-S05",
+            setup_requirements=["規則驗證", "第二規則", "第一異常"],
+            payoff_targets=["F02"],
+            twist_type="小 payoff",
+            status="pending",
+        ),
+        ArcPhase(
+            id="A03",
+            name="中段反轉",
+            purpose="讓規則互相衝突，迫使主角懷疑自己的身分與記憶。",
+            emotional_goal="把安全感轉成不確定，讓觀眾重新解讀前半段。",
+            threat_level=6,
+            target_scene_range="S06-S08",
+            setup_requirements=["規則衝突", "身份懷疑"],
+            payoff_targets=["F04"],
+            twist_type="中段反轉",
+            status="pending",
+        ),
+        ArcPhase(
+            id="A04",
+            name="世界真相擴張",
+            purpose="揭露空間運作邏輯，安排大型 foreshadow setup。",
+            emotional_goal="讓恐懼從個人危機擴大成世界規則。",
+            threat_level=7,
+            target_scene_range="S09-S10",
+            setup_requirements=["世界崩壞", "真相接近"],
+            payoff_targets=["F02"],
+            twist_type="世界觀擴張",
+            status="pending",
+        ),
+        ArcPhase(
+            id="A05",
+            name="主反轉",
+            purpose="集中回收伏筆並揭露主角和規則系統的真正關係。",
+            emotional_goal="把答案變成新的困境，讓觀眾意識到逃生代價。",
+            threat_level=9,
+            target_scene_range="S11",
+            setup_requirements=["主反轉", "payoff 爆發", "真相揭露"],
+            payoff_targets=["F01", "F04"],
+            twist_type="主反轉",
+            status="pending",
+        ),
+        ArcPhase(
+            id="A06",
+            name="尾刀",
+            purpose="留下餘韻並暗示新規則，讓結尾反咬前文。",
+            emotional_goal="讓故事看似結束，實際上把規則傳到下一位讀者。",
+            threat_level=6,
+            target_scene_range="S12",
+            setup_requirements=["尾刀", "餘韻", "新規則暗示"],
+            payoff_targets=["F03"],
+            twist_type="尾刀",
+            status="pending",
+        ),
+    ]
+
+    return ArcPlan(
+        title=f"{storyboard.sub_genre}六段式長篇 Arc Plan",
+        total_arcs=len(arcs),
+        genre="rule_horror",
+        pacing_style="fixed_six_arc_v0.1",
+        protagonist_final_goal="理解規則來源，並在不成為新規則的前提下逃離。",
+        core_theme="規則越真實，選擇越昂貴。",
+        arcs=arcs,
     )
 
 
@@ -275,10 +380,9 @@ class StoryPlanner:
     def create_outline(self, request: StoryPlanRequest) -> list[str]:
         """Create a high-level outline for storyboard generation."""
         # TODO: Add short-form arc planning for v0.1.
-        pass
+        raise NotImplementedError
 
     def allocate_pacing(self, request: StoryPlanRequest) -> dict[str, int]:
         """Allocate target seconds for each planned story segment."""
         # TODO: Map target runtime into setup, escalation, reveal, and ending.
-        pass
-
+        raise NotImplementedError

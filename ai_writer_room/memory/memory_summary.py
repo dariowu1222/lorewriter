@@ -16,8 +16,12 @@ class MemorySummary:
     current_arc_summary: str
     protagonist_goal: str
     protagonist_status: str
+    current_arc_id: str = ""
+    current_arc_goal: str = ""
+    latest_payoff: str = ""
     known_rules: list[str] = field(default_factory=list)
     unresolved_questions: list[str] = field(default_factory=list)
+    active_foreshadow_ids: list[str] = field(default_factory=list)
     current_threat_level: int = 1
     emotional_curve: str = ""
     last_major_event: str = ""
@@ -40,4 +44,3 @@ class MemorySummarizer:
         """Update an existing memory summary with new events."""
         # TODO: Merge new events without losing unresolved threads.
         raise NotImplementedError
-

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from ai_writer_room.memory.arc_planner import ArcPlan
 from ai_writer_room.memory.foreshadow_tracker import ForeshadowItem
 from ai_writer_room.memory.memory_summary import MemorySummary
 from ai_writer_room.memory.story_bible import StoryBible
@@ -24,6 +25,7 @@ class Storyboard(BaseModel):
     scenes: list[Scene] = Field(default_factory=list)
     memory_summary: MemorySummary | dict
     foreshadowing: list[ForeshadowItem] | list[dict] = Field(default_factory=list)
+    arc_plan: ArcPlan | dict | None = None
 
 
 class StoryboardDraft(BaseModel):

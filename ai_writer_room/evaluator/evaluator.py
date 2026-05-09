@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ai_writer_room.evaluator.arc_checker import ArcChecker
 from ai_writer_room.evaluator.forbidden_word_checker import ForbiddenWordChecker
 from ai_writer_room.evaluator.rule_checker import RuleChecker
 from ai_writer_room.evaluator.story_memory_checker import StoryMemoryChecker
@@ -29,12 +30,14 @@ class StoryboardEvaluator:
             forbidden_words=forbidden_words,
         )
         self.story_memory_checker = StoryMemoryChecker()
+        self.arc_checker = ArcChecker()
 
     def evaluate(self, storyboard: Storyboard) -> dict[str, object]:
         """Evaluate a generated storyboard draft."""
         rule_check = self.rule_checker.check(storyboard)
         forbidden_word_check = self.forbidden_word_checker.check_storyboard(storyboard)
         story_memory_check = self.story_memory_checker.check(storyboard)
+        arc_check = self.arc_checker.check(storyboard)
 
         return {
             "passed": bool(
@@ -43,6 +46,7 @@ class StoryboardEvaluator:
             "rule_check": rule_check,
             "forbidden_word_check": forbidden_word_check,
             "story_memory_check": story_memory_check,
+            "arc_check": arc_check,
         }
 
     def summarize_findings(self, result: EvaluationResult) -> str:

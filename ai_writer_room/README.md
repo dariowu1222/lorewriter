@@ -393,6 +393,31 @@ Purpose:
 
 v0.1 does not implement automatic payoff generation.
 
+## Arc Planner
+
+Arc Planner is the long-form structure layer for future 30-60 minute stories.
+In v0.1 it initializes a fixed six-arc plan and attaches it to each storyboard
+as `arc_plan`.
+
+Purpose:
+
+- control long-form narrative pacing
+- distribute setup/payoff targets
+- plan layered twists
+- manage the emotional curve
+
+v0.1 uses a fixed 6 Arc template. It does not implement dynamic arcs, Arc
+continuation, LLM arc generation, or automatic payoff.
+
+## 6 Arc Structure
+
+Arc 1: 世界建立
+Arc 2: 異常擴大
+Arc 3: 中段反轉
+Arc 4: 世界真相擴張
+Arc 5: 主反轉
+Arc 6: 尾刀
+
 ## Roadmap
 
 1. Keep mock generation as the safe local fallback.
