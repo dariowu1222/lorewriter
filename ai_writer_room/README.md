@@ -73,6 +73,12 @@ python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --outpu
 python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_mock.json --eval
 ```
 
+如果只要預覽未來 LLM 會使用的規則怪談 prompt：
+
+```bash
+python generate_storyboard.py --sub-genre 地鐵末班車 --duration 180 --print-prompt
+```
+
 輸出檔會建立在：
 
 ```text
@@ -97,6 +103,14 @@ output/storyboard_mock.eval.json
 
 - 所有 mock rules 是否至少被一個 scene 的 `rule_refs` 使用
 - `narration_zh` 與 `dialogue_lines[].text` 是否命中禁忌詞
+
+目前 prompt builder 會組裝：
+
+- `prompts/rule_horror.tmpl`
+- `prompts/evaluator.tmpl`
+- `prompts/auto_fix.tmpl`
+
+這些模板只作為未來 LLM 呼叫前的 prompt 組裝層，v0.1 目前不會呼叫 OpenAI API。
 
 ## Module Responsibilities
 

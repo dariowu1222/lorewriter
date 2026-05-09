@@ -14,6 +14,7 @@ if str(PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_PARENT))
 
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
+from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -87,12 +88,26 @@ def parse_args() -> argparse.Namespace:
         dest="run_eval",
         help="Run local evaluator and write a .eval.json file.",
     )
+    parser.add_argument(
+        "--print-prompt",
+        action="store_true",
+        help="Print the assembled rule horror prompt without calling an API.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     """Run storyboard generation from a script entry point."""
     args = parse_args()
+
+    if args.print_prompt:
+        prompt = PromptBuilder().build_rule_horror_prompt(
+            sub_genre=args.sub_genre,
+            duration_sec=args.duration,
+        )
+        print(prompt)
+        return
+
     storyboard = generate_storyboard(
         sub_genre=args.sub_genre,
         duration_sec=args.duration,

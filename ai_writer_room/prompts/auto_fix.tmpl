@@ -1,11 +1,21 @@
-# AI Writer Room v0.1 - Auto Fix Prompt
-# TODO: Define rewrite instructions for evaluator-driven storyboard fixes.
+你是 AI Writer Room 的 storyboard auto-fix 修正器。
 
-Original Storyboard JSON:
-{{ storyboard_json }}
+任務：
+請根據 evaluator 結果修正 storyboard JSON。
 
-Evaluator Feedback:
-{{ evaluator_feedback }}
+Original Storyboard JSON：
+{storyboard_json}
 
-# TODO: Return corrected storyboard JSON using the same schema.
+Evaluation Result JSON：
+{eval_result_json}
+
+修正指示：
+{fix_instructions}
+
+輸出要求：
+- 保留原本故事核心，不要重寫成全新故事。
+- 修正 evaluator 指出的問題。
+- 保持 storyboard schema 欄位完整。
+- 不要輸出 Markdown。
+- 只輸出 JSON。
 
