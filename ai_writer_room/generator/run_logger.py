@@ -37,6 +37,9 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "arc_plan_initialized",
     "arc_count",
     "active_arc_id",
+    "render_input_exported",
+    "render_scene_count",
+    "render_total_duration_sec",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (

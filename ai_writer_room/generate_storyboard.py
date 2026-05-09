@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 import sys
@@ -41,6 +42,8 @@ from ai_writer_room.memory.foreshadow_tracker import (
 )
 from ai_writer_room.memory.memory_summary import MemorySummary
 from ai_writer_room.memory.story_bible import StoryBible
+from ai_writer_room.render.render_adapter import RenderAdapter
+from ai_writer_room.render.render_schema import RenderProject
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
@@ -306,6 +309,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print the assembled rule horror prompt without calling a model.",
     )
+    parser.add_argument(
+        "--export-render-input",
+        action="store_true",
+        help="Export render-friendly JSON next to the storyboard output.",
+    )
     return parser.parse_args()
 
 
@@ -465,6 +473,40 @@ def count_unresolved_foreshadow(storyboard: Storyboard) -> int:
     return count
 
 
+def build_render_output_path(output_path: Path) -> Path:
+    """Build render input path next to a storyboard output path."""
+    if output_path.suffix:
+        return output_path.with_suffix(".render.json")
+    return output_path / "render_input.json"
+
+
+def export_render_input(
+    storyboard: Storyboard,
+    storyboard_output_path: Path,
+) -> tuple[RenderProject, Path]:
+    """Export a render-friendly JSON file derived from a storyboard."""
+    render_project = RenderAdapter().storyboard_to_render_project(storyboard)
+    render_output_path = build_render_output_path(storyboard_output_path)
+    write_json(payload=asdict(render_project), output_path=render_output_path)
+    return render_project, render_output_path
+
+
+def build_render_metadata(render_project: RenderProject | None) -> dict[str, int | bool]:
+    """Build safe render metadata without storing full render payload."""
+    if render_project is None:
+        return {
+            "render_input_exported": False,
+            "render_scene_count": 0,
+            "render_total_duration_sec": 0,
+        }
+
+    return {
+        "render_input_exported": True,
+        "render_scene_count": len(render_project.scenes),
+        "render_total_duration_sec": render_project.total_duration_sec,
+    }
+
+
 def get_arc_count(storyboard: Storyboard) -> int:
     """Return the current arc count without exposing full arc content."""
     if isinstance(storyboard.arc_plan, ArcPlan):
@@ -516,6 +558,7 @@ def build_generation_record(
     forbidden_words_source: str,
     cost_ref: dict[str, float | int],
     memory_init_result: dict[str, bool | int | str],
+    render_metadata: dict[str, int | bool],
 ) -> dict[str, Any]:
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
@@ -567,6 +610,12 @@ def build_generation_record(
         ),
         "arc_count": memory_init_result.get("arc_count", 0),
         "active_arc_id": memory_init_result.get("active_arc_id", ""),
+        "render_input_exported": render_metadata.get("render_input_exported", False),
+        "render_scene_count": render_metadata.get("render_scene_count", 0),
+        "render_total_duration_sec": render_metadata.get(
+            "render_total_duration_sec",
+            0,
+        ),
     }
 
 
@@ -736,6 +785,8 @@ def main() -> None:
         "arc_count": 0,
         "active_arc_id": "",
     }
+    render_project: RenderProject | None = None
+    render_metadata = build_render_metadata(render_project)
 
     try:
         if args.run_eval:
@@ -762,12 +813,23 @@ def main() -> None:
         write_storyboard_json(storyboard=storyboard, output_path=args.output)
         print(f"{provider_name.capitalize()} storyboard written to: {args.output}")
 
+        if args.export_render_input:
+            render_project, render_output_path = export_render_input(
+                storyboard=storyboard,
+                storyboard_output_path=args.output,
+            )
+            render_metadata = build_render_metadata(render_project)
+            print(f"Render input written to: {render_output_path}")
+
         eval_payload: dict[str, Any] | None = None
         eval_output_path: Path | None = None
         if args.run_eval:
             stage_ref["stage"] = "evaluator"
             evaluator = StoryboardEvaluator(forbidden_words=forbidden_words)
-            before_fix = evaluator.evaluate(storyboard)
+            before_fix = evaluator.evaluate(
+                storyboard=storyboard,
+                render_project=render_project,
+            )
             after_fix: dict[str, Any] | None = None
 
             if args.auto_fix and not before_fix.get("passed"):
@@ -778,9 +840,19 @@ def main() -> None:
                 auto_fix_applied = True
                 stage_ref["stage"] = "output_write"
                 write_storyboard_json(storyboard=storyboard, output_path=args.output)
+                if args.export_render_input:
+                    render_project, render_output_path = export_render_input(
+                        storyboard=storyboard,
+                        storyboard_output_path=args.output,
+                    )
+                    render_metadata = build_render_metadata(render_project)
+                    print(f"Render input written to: {render_output_path}")
 
                 stage_ref["stage"] = "evaluator"
-                after_fix = evaluator.evaluate(storyboard)
+                after_fix = evaluator.evaluate(
+                    storyboard=storyboard,
+                    render_project=render_project,
+                )
                 eval_payload = build_eval_payload(
                     before_fix=before_fix,
                     after_fix=after_fix,
@@ -821,6 +893,7 @@ def main() -> None:
                 forbidden_words_source=forbidden_words_source,
                 cost_ref=cost_ref,
                 memory_init_result=memory_init_result,
+                render_metadata=render_metadata,
             )
         )
     except Exception as exc:

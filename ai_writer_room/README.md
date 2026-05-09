@@ -337,6 +337,7 @@ For `mock` / `manual` / `local`, these values default to zero.
 - `generator/story_planner.py`: Local mock storyboard generation.
 - `generator/rule_engine.py`: Mock rules and rule reference checks.
 - `evaluator/`: Local rule and forbidden-word evaluation.
+- `render/`: Storyboard-to-render input adapter and render dataclass schemas.
 - `schemas/`: Pydantic contracts for scene and storyboard JSON.
 - `prompts/`: Prompt templates for generation, evaluator, and future auto-fix.
 
@@ -417,6 +418,43 @@ Arc 3: 中段反轉
 Arc 4: 世界真相擴張
 Arc 5: 主反轉
 Arc 6: 尾刀
+
+## Render Adapter
+
+Render Adapter converts storyboard JSON into render-friendly JSON for future
+media pipelines.
+
+Purpose:
+
+- provide input for future `render_v5_local.py`
+- provide scene text for a future TTS pipeline
+- provide image prompts for a future image generation pipeline
+- provide subtitle text for a future subtitle pipeline
+
+v0.1 does not generate mp4 files, call ffmpeg, run TTS, generate images, compose
+video, burn subtitles, or mix BGM. It only exports render-friendly JSON.
+
+## Export Render Input
+
+```bash
+python generate_storyboard.py --provider mock --sub-genre 地鐵末班車 --duration 180 --output output/storyboard_render.json --eval --export-render-input
+```
+
+When `--output` is:
+
+```text
+output/storyboard_render.json
+```
+
+the render input is written to:
+
+```text
+output/storyboard_render.render.json
+```
+
+The render input contains scene-level narration, TTS text, subtitle text,
+duration, camera style, visual style, image prompt, dialogue lines, and
+transition type.
 
 ## Roadmap
 
