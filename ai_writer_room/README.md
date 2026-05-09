@@ -198,12 +198,65 @@ JSON output uses:
 - `ensure_ascii=False`
 - `indent=2`
 
+## Logs
+
+Each non-`--print-prompt` generation run creates a `run_id`.
+
+Successful generation metadata is written to:
+
+```text
+logs/generations/{YYYY-MM-DD}/{run_id}.json
+```
+
+Failure metadata is appended to:
+
+```text
+logs/failures.jsonl
+```
+
+Generation logs currently include metadata such as:
+
+- `run_id`
+- `created_at`
+- `provider`
+- `model`
+- `sub_genre`
+- `duration_sec`
+- `output_path`
+- `eval_path`
+- `success`
+- `eval_passed`
+- `scene_count`
+- `rule_check_passed`
+- `forbidden_word_check_passed`
+
+Failure logs currently include:
+
+- `run_id`
+- `created_at`
+- `provider`
+- `model`
+- `sub_genre`
+- `duration_sec`
+- `error_type`
+- `error_message`
+- `stage`
+
+Log safety:
+
+- Logs do not record API keys.
+- Logs do not record the full prompt.
+- Logs do not record raw model output.
+- Real log files are ignored by Git.
+- `logs/.gitkeep` is kept only so the directory exists in the repository.
+
 ## Module Responsibilities
 
 - `generator/model_provider.py`: Base provider interface plus OpenAI and local providers.
 - `generator/api_client.py`: OpenAI client wrapper. It returns raw text only and does not parse JSON.
 - `generator/json_parser.py`: Extracts JSON from raw model output and validates it as `Storyboard`.
 - `generator/prompt_builder.py`: Builds rule horror, evaluator, and auto-fix prompts from templates.
+- `generator/run_logger.py`: Writes safe generation and failure metadata logs.
 - `generator/story_planner.py`: Local mock storyboard generation.
 - `generator/rule_engine.py`: Mock rules and rule reference checks.
 - `evaluator/`: Local rule and forbidden-word evaluation.
@@ -222,4 +275,3 @@ JSON output uses:
 6. Add Story Bible, Memory Summary, and Foreshadow Tracker.
 7. Extend to 30-60 minute long-form story generation.
 8. Add render/export adapters for video, narration, and script workflows.
-

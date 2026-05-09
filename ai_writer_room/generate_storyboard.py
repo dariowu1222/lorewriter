@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 import sys
 from typing import Any, Literal
@@ -23,6 +24,7 @@ from ai_writer_room.generator.model_provider import (
     OpenAIModelProvider,
 )
 from ai_writer_room.generator.prompt_builder import PromptBuilder
+from ai_writer_room.generator.run_logger import RunLogger
 from ai_writer_room.generator.story_planner import build_mock_rule_horror_storyboard
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -103,6 +105,35 @@ def build_model_provider(
         return LocalModelProvider(model=model or LOCAL_PROVIDER_MODEL)
 
     raise ValueError(f"Unsupported model provider: {provider_name}")
+
+
+def build_storyboard_without_output(
+    provider_name: ProviderName,
+    sub_genre: str,
+    duration_sec: int,
+    model: str | None,
+    stage_ref: dict[str, str],
+) -> Storyboard:
+    """Build a storyboard while exposing coarse failure stages to the CLI."""
+    if provider_name == "mock":
+        stage_ref["stage"] = "model_generate"
+        return generate_storyboard(
+            sub_genre=sub_genre,
+            duration_sec=duration_sec,
+        )
+
+    stage_ref["stage"] = "prompt_build"
+    prompt = PromptBuilder().build_rule_horror_prompt(
+        sub_genre=sub_genre,
+        duration_sec=duration_sec,
+    )
+
+    stage_ref["stage"] = "model_generate"
+    provider = build_model_provider(provider_name=provider_name, model=model)
+    raw_text = provider.generate_text(prompt)
+
+    stage_ref["stage"] = "json_parse"
+    return StoryboardJsonParser().parse_storyboard(raw_text)
 
 
 def write_storyboard_json(storyboard: Storyboard, output_path: Path) -> None:
@@ -191,6 +222,78 @@ def resolve_provider_name(args: argparse.Namespace) -> ProviderName:
     return args.provider
 
 
+def resolve_model_name(provider_name: ProviderName, model: str | None) -> str:
+    """Resolve the model name used in run metadata."""
+    if provider_name == "mock":
+        return "local-mock-v0.1"
+    if provider_name == "local":
+        return model or LOCAL_PROVIDER_MODEL
+    return model or DEFAULT_MODEL
+
+
+def utc_now_text() -> str:
+    """Return a UTC timestamp for run metadata."""
+    return datetime.now(UTC).isoformat()
+
+
+def build_generation_record(
+    run_id: str,
+    created_at: str,
+    provider_name: ProviderName,
+    model_name: str,
+    args: argparse.Namespace,
+    eval_result: dict[str, Any] | None,
+    eval_output_path: Path | None,
+    storyboard: Storyboard,
+) -> dict[str, Any]:
+    """Build safe generation metadata without prompt or raw model output."""
+    rule_check = eval_result.get("rule_check", {}) if eval_result else {}
+    forbidden_check = eval_result.get("forbidden_word_check", {}) if eval_result else {}
+
+    return {
+        "run_id": run_id,
+        "created_at": created_at,
+        "provider": provider_name,
+        "model": model_name,
+        "sub_genre": args.sub_genre,
+        "duration_sec": args.duration,
+        "output_path": str(args.output),
+        "eval_path": str(eval_output_path) if eval_output_path else None,
+        "success": True,
+        "eval_passed": eval_result.get("passed") if eval_result else None,
+        "error_type": None,
+        "error_message": None,
+        "scene_count": len(storyboard.scenes),
+        "rule_check_passed": rule_check.get("passed") if eval_result else None,
+        "forbidden_word_check_passed": (
+            forbidden_check.get("passed") if eval_result else None
+        ),
+    }
+
+
+def build_failure_record(
+    run_id: str,
+    created_at: str,
+    provider_name: ProviderName,
+    model_name: str,
+    args: argparse.Namespace,
+    error: Exception,
+    stage: str,
+) -> dict[str, Any]:
+    """Build safe failure metadata without prompt or raw model output."""
+    return {
+        "run_id": run_id,
+        "created_at": created_at,
+        "provider": provider_name,
+        "model": model_name,
+        "sub_genre": args.sub_genre,
+        "duration_sec": args.duration,
+        "error_type": error.__class__.__name__,
+        "error_message": str(error),
+        "stage": stage,
+    }
+
+
 def main() -> None:
     """Run storyboard generation from a script entry point."""
     args = parse_args()
@@ -204,16 +307,68 @@ def main() -> None:
         return
 
     provider_name = resolve_provider_name(args)
+    model_name = resolve_model_name(provider_name=provider_name, model=args.model)
+    logger = RunLogger()
+    run_id = logger.create_run_id()
+    created_at = utc_now_text()
+    stage_ref = {"stage": "model_generate"}
 
     try:
-        storyboard = generate_storyboard_from_provider(
+        storyboard = build_storyboard_without_output(
             provider_name=provider_name,
             sub_genre=args.sub_genre,
             duration_sec=args.duration,
-            output_path=args.output,
             model=args.model,
+            stage_ref=stage_ref,
         )
-    except (RuntimeError, ValueError) as exc:
+
+        stage_ref["stage"] = "output_write"
+        write_storyboard_json(storyboard=storyboard, output_path=args.output)
+        print(f"{provider_name.capitalize()} storyboard written to: {args.output}")
+
+        eval_result: dict[str, Any] | None = None
+        eval_output_path: Path | None = None
+        if args.run_eval:
+            stage_ref["stage"] = "evaluator"
+            eval_result = StoryboardEvaluator().evaluate(storyboard)
+            eval_output_path = build_eval_output_path(args.output)
+            stage_ref["stage"] = "output_write"
+            write_json(payload=eval_result, output_path=eval_output_path)
+            print(f"Evaluation written to: {eval_output_path}")
+
+        logger.log_generation(
+            build_generation_record(
+                run_id=run_id,
+                created_at=created_at,
+                provider_name=provider_name,
+                model_name=model_name,
+                args=args,
+                eval_result=eval_result,
+                eval_output_path=eval_output_path,
+                storyboard=storyboard,
+            )
+        )
+    except Exception as exc:
+        failure_record = build_failure_record(
+            run_id=run_id,
+            created_at=created_at,
+            provider_name=provider_name,
+            model_name=model_name,
+            args=args,
+            error=exc,
+            stage=stage_ref["stage"],
+        )
+        try:
+            logger.log_failure(failure_record)
+        except Exception as log_exc:
+            print(
+                (
+                    "Failed to write failure log "
+                    f"({log_exc.__class__.__name__}): {log_exc}"
+                ),
+                file=sys.stderr,
+            )
+
         print(
             (
                 f"Generation failed for provider '{provider_name}' "
@@ -222,14 +377,6 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(1) from None
-
-    print(f"{provider_name.capitalize()} storyboard written to: {args.output}")
-
-    if args.run_eval:
-        eval_result = StoryboardEvaluator().evaluate(storyboard)
-        eval_output_path = build_eval_output_path(args.output)
-        write_json(payload=eval_result, output_path=eval_output_path)
-        print(f"Evaluation written to: {eval_output_path}")
 
 
 if __name__ == "__main__":
