@@ -19,6 +19,11 @@ from ai_writer_room.evaluator.auto_fix import LocalAutoFixer
 from ai_writer_room.evaluator.evaluator import StoryboardEvaluator
 from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
 from ai_writer_room.generator.cost_guard import CostGuard
+from ai_writer_room.generator.generation_mode import (
+    GenerationMode,
+    GenerationModeInfo,
+    GenerationModeRegistry,
+)
 from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.model_provider import (
     LOCAL_PROVIDER_MODEL,
@@ -310,6 +315,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Export render-friendly JSON next to the storyboard output.",
     )
+    parser.add_argument(
+        "--list-generation-modes",
+        action="store_true",
+        help="Print UI-ready generation mode metadata and exit.",
+    )
     return parser.parse_args()
 
 
@@ -329,6 +339,25 @@ def resolve_model_name(provider_name: ProviderName, model: str | None) -> str:
     if provider_name == "manual":
         return "manual"
     return model or DEFAULT_MODEL
+
+
+def list_generation_modes_payload() -> list[dict[str, Any]]:
+    """Return UI-ready generation mode metadata as JSON-safe dictionaries."""
+    return [
+        mode_info.model_dump(mode="json")
+        for mode_info in GenerationModeRegistry.list_modes()
+    ]
+
+
+def get_generation_mode_info_for_provider(
+    provider_name: ProviderName,
+) -> GenerationModeInfo | None:
+    """Return public mode metadata for manual/openai providers."""
+    try:
+        mode = GenerationMode(provider_name)
+    except ValueError:
+        return None
+    return GenerationModeRegistry.get_mode_info(mode)
 
 
 def require_sub_genre(sub_genre: str | None) -> str:
@@ -506,6 +535,7 @@ def build_generation_record(
     """Build safe generation metadata without prompt or raw model output."""
     rule_check = eval_result.get("rule_check", {}) if eval_result else {}
     forbidden_check = eval_result.get("forbidden_word_check", {}) if eval_result else {}
+    generation_mode_info = get_generation_mode_info_for_provider(provider_name)
 
     return {
         "run_id": run_id,
@@ -559,6 +589,16 @@ def build_generation_record(
             "render_total_duration_sec",
             0,
         ),
+        "generation_mode": (
+            generation_mode_info.mode if generation_mode_info is not None else ""
+        ),
+        "generation_mode_display_name": (
+            generation_mode_info.display_name
+            if generation_mode_info is not None
+            else ""
+        ),
+        "used_manual_pipeline": provider_name == "manual",
+        "used_api_pipeline": provider_name == "openai",
     }
 
 
@@ -682,6 +722,16 @@ def main() -> None:
     args = parse_args()
 
     try:
+        if args.list_generation_modes:
+            print(
+                json.dumps(
+                    list_generation_modes_payload(),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return
+
         if args.print_prompt:
             prompt = PromptBuilder().build_rule_horror_prompt(
                 sub_genre=require_sub_genre(args.sub_genre),
@@ -772,6 +822,9 @@ def main() -> None:
             before_fix = evaluator.evaluate(
                 storyboard=storyboard,
                 render_project=render_project,
+                provider_name=provider_name,
+                cost_guard_enabled=provider_name == "openai",
+                render_export_requested=args.export_render_input,
             )
             after_fix: dict[str, Any] | None = None
 
@@ -795,6 +848,9 @@ def main() -> None:
                 after_fix = evaluator.evaluate(
                     storyboard=storyboard,
                     render_project=render_project,
+                    provider_name=provider_name,
+                    cost_guard_enabled=provider_name == "openai",
+                    render_export_requested=args.export_render_input,
                 )
                 eval_payload = build_eval_payload(
                     before_fix=before_fix,

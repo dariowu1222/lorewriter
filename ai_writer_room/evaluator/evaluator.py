@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from ai_writer_room.evaluator.arc_checker import ArcChecker
 from ai_writer_room.evaluator.forbidden_word_checker import ForbiddenWordChecker
+from ai_writer_room.evaluator.generation_mode_checker import GenerationModeChecker
 from ai_writer_room.evaluator.render_input_checker import RenderInputChecker
 from ai_writer_room.evaluator.rule_checker import RuleChecker
 from ai_writer_room.evaluator.story_memory_checker import StoryMemoryChecker
@@ -34,17 +35,30 @@ class StoryboardEvaluator:
         self.story_memory_checker = StoryMemoryChecker()
         self.arc_checker = ArcChecker()
         self.render_input_checker = RenderInputChecker()
+        self.generation_mode_checker = GenerationModeChecker()
 
     def evaluate(
         self,
         storyboard: Storyboard,
         render_project: RenderProject | dict | None = None,
+        provider_name: str | None = None,
+        cost_guard_enabled: bool | None = None,
+        render_export_requested: bool | None = None,
     ) -> dict[str, object]:
         """Evaluate a generated storyboard draft."""
         rule_check = self.rule_checker.check(storyboard)
         forbidden_word_check = self.forbidden_word_checker.check_storyboard(storyboard)
         story_memory_check = self.story_memory_checker.check(storyboard)
         arc_check = self.arc_checker.check(storyboard)
+        generation_mode_check = self.generation_mode_checker.check(
+            provider_name=provider_name,
+            cost_guard_enabled=cost_guard_enabled,
+            render_export_requested=(
+                render_project is not None
+                if render_export_requested is None
+                else render_export_requested
+            ),
+        )
 
         result: dict[str, object] = {
             "passed": bool(
@@ -56,6 +70,7 @@ class StoryboardEvaluator:
             "forbidden_word_check": forbidden_word_check,
             "story_memory_check": story_memory_check,
             "arc_check": arc_check,
+            "generation_mode_check": generation_mode_check,
         }
         if render_project is not None:
             result["render_input_check"] = self.render_input_checker.check(

@@ -43,6 +43,56 @@ Safety notes:
 
 `--use-api` remains as a legacy alias for `--provider openai`.
 
+## Generation Modes
+
+List UI-ready generation modes:
+
+```bash
+python generate_storyboard.py --list-generation-modes
+```
+
+## 省錢模式（Manual）
+
+Flow:
+
+```text
+prompt.txt
+↓
+貼到 ChatGPT / Claude / Gemini
+↓
+匯回 JSON
+↓
+parse/eval/render export
+```
+
+Best for:
+
+- 個人創作
+- 開發測試
+- 節省 API 成本
+
+## API 自動模式（OpenAI）
+
+Flow:
+
+```text
+prompt
+↓
+OpenAI API
+↓
+JSON parse
+↓
+eval
+↓
+render export
+```
+
+Best for:
+
+- 商業化
+- 大量生成
+- 自動化 pipeline
+
 ## Usage
 
 Mock generation with evaluation:
@@ -243,6 +293,21 @@ of the real `output/` and `logs/` folders.
 ```bash
 python -m unittest discover -s ai_writer_room/tests
 ```
+
+## Future UI Plan
+
+The future frontend can expose two primary tabs:
+
+- Tab 1: 省錢模式（Manual）
+- Tab 2: API 自動模式（OpenAI）
+
+Both modes will share:
+
+- evaluator
+- auto-fix
+- render export
+- story memory
+- arc planner
 
 ## Module Responsibilities
 

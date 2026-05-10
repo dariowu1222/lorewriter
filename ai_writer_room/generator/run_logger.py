@@ -40,6 +40,10 @@ GENERATION_RECORD_FIELDS: tuple[str, ...] = (
     "render_input_exported",
     "render_scene_count",
     "render_total_duration_sec",
+    "generation_mode",
+    "generation_mode_display_name",
+    "used_manual_pipeline",
+    "used_api_pipeline",
 )
 
 FAILURE_RECORD_FIELDS: tuple[str, ...] = (
