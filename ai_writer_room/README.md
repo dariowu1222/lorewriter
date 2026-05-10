@@ -268,6 +268,43 @@ logs/failures.jsonl
 Logs do not include API keys, full prompts, raw model output, manual response
 content, full Story Bible content, full Arc Plan content, or full render JSON.
 
+## UI Contract
+
+The minimal UI contract is a JSON/Pydantic contract for a future Web UI. It lets
+the frontend build tabs, fields, and actions from the same concepts used by the
+CLI.
+
+It defines:
+
+- Manual and OpenAI tabs
+- shared fields such as sub-genre, duration, evaluator, auto-fix, render export,
+  and forbidden words input
+- mode-specific fields
+- shared and mode-specific actions
+
+Print the contract:
+
+```bash
+python generate_storyboard.py --print-ui-contract
+```
+
+## Future Web UI Tabs
+
+Tab 1:
+
+- 省錢模式 Manual
+
+Tab 2:
+
+- API 自動模式 OpenAI
+
+Shared capabilities:
+
+- evaluator
+- auto-fix
+- render export
+- forbidden words input
+
 ## Smoke Tests
 
 Smoke tests validate the core local pipelines so later refactors do not quietly

@@ -46,6 +46,7 @@ from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.render.render_adapter import RenderAdapter
 from ai_writer_room.render.render_schema import RenderProject
 from ai_writer_room.schemas.storyboard_schema import Storyboard
+from ai_writer_room.ui_contract.contract_loader import UIContractLoader
 
 
 ProviderName = Literal["mock", "openai", "local", "manual"]
@@ -320,6 +321,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print UI-ready generation mode metadata and exit.",
     )
+    parser.add_argument(
+        "--print-ui-contract",
+        action="store_true",
+        help="Print the minimal web UI contract and exit.",
+    )
     return parser.parse_args()
 
 
@@ -347,6 +353,11 @@ def list_generation_modes_payload() -> list[dict[str, Any]]:
         mode_info.model_dump(mode="json")
         for mode_info in GenerationModeRegistry.list_modes()
     ]
+
+
+def ui_contract_payload() -> dict[str, Any]:
+    """Return the UI contract as a JSON-safe dictionary."""
+    return UIContractLoader.load_contract().model_dump(mode="json")
 
 
 def get_generation_mode_info_for_provider(
@@ -722,6 +733,16 @@ def main() -> None:
     args = parse_args()
 
     try:
+        if args.print_ui_contract:
+            print(
+                json.dumps(
+                    ui_contract_payload(),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return
+
         if args.list_generation_modes:
             print(
                 json.dumps(

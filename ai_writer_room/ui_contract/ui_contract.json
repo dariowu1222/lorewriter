@@ -1,0 +1,206 @@
+{
+  "version": "0.1",
+  "tabs": [
+    {
+      "id": "manual",
+      "label": "省錢模式",
+      "mode": "manual",
+      "description": "產生 prompt，手動貼到 ChatGPT / Claude / Gemini，再匯回 JSON。",
+      "enabled": true
+    },
+    {
+      "id": "openai",
+      "label": "API 自動模式",
+      "mode": "openai",
+      "description": "使用 OpenAI API 自動生成 storyboard。",
+      "enabled": true
+    }
+  ],
+  "shared_fields": [
+    {
+      "id": "sub_genre",
+      "label": "子類型",
+      "type": "select",
+      "required": true,
+      "options": [
+        "地鐵末班車",
+        "宿舍規則",
+        "急診夜班",
+        "深夜客服",
+        "網吧夜班"
+      ]
+    },
+    {
+      "id": "duration",
+      "label": "時長秒數",
+      "type": "number",
+      "required": true,
+      "default": 180
+    },
+    {
+      "id": "enable_eval",
+      "label": "啟用評估",
+      "type": "checkbox",
+      "required": false,
+      "default": true
+    },
+    {
+      "id": "enable_auto_fix",
+      "label": "啟用本地修正",
+      "type": "checkbox",
+      "required": false,
+      "default": false
+    },
+    {
+      "id": "export_render_input",
+      "label": "匯出 Render Input",
+      "type": "checkbox",
+      "required": false,
+      "default": true
+    },
+    {
+      "id": "forbidden_words",
+      "label": "自訂禁忌詞",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "每行一組：禁忌詞=替換詞"
+    }
+  ],
+  "manual_fields": [
+    {
+      "id": "manual_prompt_output",
+      "label": "Prompt 輸出路徑",
+      "type": "text",
+      "required": false,
+      "default": "output/manual_prompt.txt"
+    },
+    {
+      "id": "manual_response_input",
+      "label": "手動回覆 JSON 路徑",
+      "type": "text",
+      "required": false,
+      "default": "output/manual_response.json"
+    }
+  ],
+  "openai_fields": [
+    {
+      "id": "model",
+      "label": "模型",
+      "type": "select",
+      "required": true,
+      "default": "gpt-4o-mini",
+      "options": [
+        "gpt-4o-mini",
+        "gpt-4o"
+      ]
+    },
+    {
+      "id": "ignore_budget_guard",
+      "label": "忽略成本保護",
+      "type": "checkbox",
+      "required": false,
+      "default": false
+    }
+  ],
+  "shared_actions": [
+    {
+      "id": "validate_storyboard",
+      "label": "驗證 Storyboard",
+      "description": "將 JSON 解析並驗證為 Storyboard schema。",
+      "requires": [
+        "storyboard_json"
+      ],
+      "outputs": [
+        "validated_storyboard"
+      ]
+    },
+    {
+      "id": "run_eval",
+      "label": "執行評估",
+      "description": "執行本地 evaluator，產生規則、禁忌詞、記憶、Arc 與 render 檢查結果。",
+      "requires": [
+        "validated_storyboard"
+      ],
+      "outputs": [
+        "eval_result_json"
+      ]
+    },
+    {
+      "id": "run_auto_fix",
+      "label": "執行本地修正",
+      "description": "根據 eval 結果執行 deterministic local auto-fix。",
+      "requires": [
+        "validated_storyboard",
+        "eval_result_json"
+      ],
+      "outputs": [
+        "fixed_storyboard_json",
+        "after_fix_eval_json"
+      ]
+    },
+    {
+      "id": "export_render_input",
+      "label": "匯出 Render Input",
+      "description": "將 storyboard 轉成 render-friendly JSON。",
+      "requires": [
+        "validated_storyboard"
+      ],
+      "outputs": [
+        "render_input_json"
+      ]
+    }
+  ],
+  "manual_actions": [
+    {
+      "id": "generate_manual_prompt",
+      "label": "產生 Prompt",
+      "description": "依使用者設定產生可手動貼到 ChatGPT / Claude / Gemini 的 prompt。",
+      "requires": [
+        "sub_genre",
+        "duration"
+      ],
+      "outputs": [
+        "manual_prompt_text"
+      ]
+    },
+    {
+      "id": "import_manual_response",
+      "label": "匯入手動回覆",
+      "description": "讀取手動儲存的模型 JSON 回覆並驗證成 Storyboard。",
+      "requires": [
+        "manual_response_input"
+      ],
+      "outputs": [
+        "validated_storyboard"
+      ]
+    }
+  ],
+  "openai_actions": [
+    {
+      "id": "estimate_cost",
+      "label": "估算成本",
+      "description": "在呼叫 OpenAI 前估算單次與月使用成本。",
+      "requires": [
+        "sub_genre",
+        "duration",
+        "model"
+      ],
+      "outputs": [
+        "cost_estimate"
+      ]
+    },
+    {
+      "id": "generate_with_openai",
+      "label": "使用 OpenAI 生成",
+      "description": "透過 OpenAI API 自動生成 storyboard JSON。",
+      "requires": [
+        "sub_genre",
+        "duration",
+        "model"
+      ],
+      "outputs": [
+        "validated_storyboard"
+      ]
+    }
+  ]
+}
