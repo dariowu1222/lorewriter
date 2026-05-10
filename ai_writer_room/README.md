@@ -288,6 +288,40 @@ Print the contract:
 python generate_storyboard.py --print-ui-contract
 ```
 
+## Web Prototype
+
+The prototype includes a FastAPI backend and a Vite React frontend. It does not
+implement login, database storage, WebSocket collaboration, deployment, video
+generation, image generation, TTS, ffmpeg, or `render_v5_local.py` integration.
+
+Start the backend:
+
+```bash
+uvicorn api.main:app --reload --port 8000
+```
+
+Start the frontend:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Manual tab flow:
+
+```text
+產 prompt → 貼到 ChatGPT / Claude / Gemini → 貼回 JSON → parse/eval/render
+```
+
+OpenAI tab flow:
+
+```text
+設定後端 API key → 一鍵生成
+```
+
+OpenAI keys are read only by the backend. The frontend does not store API keys.
+
 ## Future Web UI Tabs
 
 Tab 1:
