@@ -55,7 +55,7 @@ class LocalModelProvider(BaseModelProvider):
         self._client = OpenAI(
             base_url=base_url,
             api_key=api_key,
-            timeout=10.0,
+            timeout=60.0,
             max_retries=3,
         )
 
@@ -75,6 +75,7 @@ class LocalModelProvider(BaseModelProvider):
                     }
                 ],
                 temperature=0.3,
+                max_tokens=6500,
                 response_format={"type": "json_object"},
             )
         except APIConnectionError as exc:

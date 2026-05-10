@@ -218,7 +218,27 @@ logs/failures.jsonl
 Logs do not include API keys, full prompts, raw model output, manual response
 content, full Story Bible content, full Arc Plan content, or full render JSON.
 
-## Tests
+## Smoke Tests
+
+Smoke tests validate the core local pipelines so later refactors do not quietly
+break working behavior.
+
+Current smoke coverage includes:
+
+- mock generation
+- manual parse
+- local auto-fix
+- render export
+- story memory initialization
+- cost guard blocking
+- provider error handling
+- CLI wrapper behavior
+
+These tests are CI-friendly: they do not require an API key, do not require a
+local model server, and write generated files into temporary directories instead
+of the real `output/` and `logs/` folders.
+
+## Run Smoke Tests
 
 ```bash
 python -m unittest discover -s ai_writer_room/tests
