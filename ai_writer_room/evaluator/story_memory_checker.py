@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import is_dataclass
-from typing import Any
-
 from ai_writer_room.memory.foreshadow_tracker import ForeshadowItem
+from ai_writer_room.memory.memory_summary import MemorySummary
 from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
@@ -52,50 +50,31 @@ class StoryMemoryChecker:
             ),
         }
 
-    def _has_story_bible(self, value: StoryBible | dict[Any, Any]) -> bool:
+    def _has_story_bible(self, value: StoryBible) -> bool:
         """Return whether a Story Bible payload has usable content."""
-        if isinstance(value, StoryBible):
-            return bool(value.characters or value.world_rules)
-        if isinstance(value, dict):
-            return bool(value)
-        return is_dataclass(value)
+        return bool(value.characters or value.world_rules)
 
-    def _has_memory_summary(self, value: object) -> bool:
+    def _has_memory_summary(self, value: MemorySummary) -> bool:
         """Return whether a memory summary payload has usable content."""
-        if isinstance(value, dict):
-            return bool(value)
-        return value is not None
+        return bool(value.current_arc_summary or value.known_rules)
 
     def _count_story_bible_list(
         self,
-        story_bible: StoryBible | dict[Any, Any],
+        story_bible: StoryBible,
         field_name: str,
     ) -> int:
-        """Count a list field on either dataclass or dict Story Bible values."""
-        if isinstance(story_bible, StoryBible):
-            value = getattr(story_bible, field_name)
-        elif isinstance(story_bible, dict):
-            value = story_bible.get(field_name, [])
-        else:
-            value = getattr(story_bible, field_name, [])
-
+        """Count a list field on Story Bible values."""
+        value = getattr(story_bible, field_name)
         return len(value) if isinstance(value, list) else 0
 
     def _count_unresolved_foreshadow(
         self,
-        items: list[ForeshadowItem] | list[dict],
+        items: list[ForeshadowItem],
     ) -> int:
         """Count foreshadowing items that still need payoff."""
         count = 0
         for item in items:
-            if isinstance(item, ForeshadowItem):
-                status = item.status
-            elif isinstance(item, dict):
-                status = str(item.get("status", ""))
-            else:
-                status = str(getattr(item, "status", ""))
-
-            if status == "setup_only":
+            if item.status == "setup_only":
                 count += 1
 
         return count

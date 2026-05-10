@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+output/
+logs/
+!output/.gitkeep
+!logs/.gitkeep
+*.openai_api_key
+*api_key*

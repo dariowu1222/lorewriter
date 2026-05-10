@@ -1,10 +1,9 @@
-"""Programmatic entry point for storyboard generation."""
+﻿"""Programmatic entry point for storyboard generation."""
 
 from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 import sys
@@ -36,10 +35,7 @@ from ai_writer_room.generator.story_planner import (
     build_mock_rule_horror_storyboard,
 )
 from ai_writer_room.memory.arc_planner import ArcPlan
-from ai_writer_room.memory.foreshadow_tracker import (
-    ForeshadowItem,
-    ForeshadowTracker,
-)
+from ai_writer_room.memory.foreshadow_tracker import ForeshadowTracker
 from ai_writer_room.memory.memory_summary import MemorySummary
 from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.render.render_adapter import RenderAdapter
@@ -371,53 +367,31 @@ def initialize_story_memory(storyboard: Storyboard) -> dict[str, bool | int | st
     }
 
 
-def _has_story_bible(value: StoryBible | dict[Any, Any]) -> bool:
+def _has_story_bible(value: StoryBible) -> bool:
     """Return whether Story Bible data is present and usable."""
-    if isinstance(value, StoryBible):
-        return bool(value.characters or value.world_rules)
-    if isinstance(value, dict):
-        return bool(value)
-    return value is not None
+    return bool(value.characters or value.world_rules)
 
 
-def _has_memory_summary(value: MemorySummary | dict[Any, Any]) -> bool:
+def _has_memory_summary(value: MemorySummary) -> bool:
     """Return whether memory summary data is present and usable."""
-    if isinstance(value, MemorySummary):
-        return bool(value.current_arc_summary or value.known_rules)
-    if isinstance(value, dict):
-        return bool(value)
-    return value is not None
+    return bool(value.current_arc_summary or value.known_rules)
 
 
-def _has_arc_plan(value: ArcPlan | dict[Any, Any] | None) -> bool:
+def _has_arc_plan(value: ArcPlan | None) -> bool:
     """Return whether arc plan data is present and usable."""
-    if isinstance(value, ArcPlan):
-        return bool(value.arcs)
-    if isinstance(value, dict):
-        return bool(value.get("arcs"))
-    return False
+    return bool(value and value.arcs)
 
 
 def ensure_story_bible_arc_metadata(storyboard: Storyboard) -> None:
     """Fill missing Arc metadata on Story Bible values."""
-    if isinstance(storyboard.story_bible, StoryBible):
-        if not storyboard.story_bible.arc_summary:
-            storyboard.story_bible.arc_summary = (
-                "A01 世界建立啟動，主角正在接觸第一批規則。"
-            )
-        if not storyboard.story_bible.active_arc_id:
-            storyboard.story_bible.active_arc_id = "A01"
-        if not storyboard.story_bible.current_story_stage:
-            storyboard.story_bible.current_story_stage = "世界建立"
-        return
-
-    if isinstance(storyboard.story_bible, dict):
-        storyboard.story_bible.setdefault(
-            "arc_summary",
-            "A01 世界建立啟動，主角正在接觸第一批規則。",
+    if not storyboard.story_bible.arc_summary:
+        storyboard.story_bible.arc_summary = (
+            "A01 世界建立啟動，主角正在接觸第一批規則。"
         )
-        storyboard.story_bible.setdefault("active_arc_id", "A01")
-        storyboard.story_bible.setdefault("current_story_stage", "世界建立")
+    if not storyboard.story_bible.active_arc_id:
+        storyboard.story_bible.active_arc_id = "A01"
+    if not storyboard.story_bible.current_story_stage:
+        storyboard.story_bible.current_story_stage = "世界建立"
 
 
 def ensure_memory_summary_arc_metadata(storyboard: Storyboard) -> None:
@@ -430,47 +404,25 @@ def ensure_memory_summary_arc_metadata(storyboard: Storyboard) -> None:
         }
     )
 
-    if isinstance(storyboard.memory_summary, MemorySummary):
-        if not storyboard.memory_summary.current_arc_id:
-            storyboard.memory_summary.current_arc_id = "A01"
-        if not storyboard.memory_summary.current_arc_goal:
-            storyboard.memory_summary.current_arc_goal = (
-                "建立世界、主角處境與第一規則。"
-            )
-        if not storyboard.memory_summary.latest_payoff:
-            storyboard.memory_summary.latest_payoff = "尚未發生"
-        if not storyboard.memory_summary.active_foreshadow_ids:
-            storyboard.memory_summary.active_foreshadow_ids = active_foreshadow_ids
-        return
-
-    if isinstance(storyboard.memory_summary, dict):
-        storyboard.memory_summary.setdefault("current_arc_id", "A01")
-        storyboard.memory_summary.setdefault(
-            "current_arc_goal",
-            "建立世界、主角處境與第一規則。",
+    if not storyboard.memory_summary.current_arc_id:
+        storyboard.memory_summary.current_arc_id = "A01"
+    if not storyboard.memory_summary.current_arc_goal:
+        storyboard.memory_summary.current_arc_goal = (
+            "建立世界、主角處境與第一規則。"
         )
-        storyboard.memory_summary.setdefault("latest_payoff", "尚未發生")
-        storyboard.memory_summary.setdefault(
-            "active_foreshadow_ids",
-            active_foreshadow_ids,
-        )
+    if not storyboard.memory_summary.latest_payoff:
+        storyboard.memory_summary.latest_payoff = "尚未發生"
+    if not storyboard.memory_summary.active_foreshadow_ids:
+        storyboard.memory_summary.active_foreshadow_ids = active_foreshadow_ids
 
 
 def count_unresolved_foreshadow(storyboard: Storyboard) -> int:
     """Count foreshadowing entries that still need payoff."""
-    count = 0
-    for item in storyboard.foreshadowing:
-        if isinstance(item, ForeshadowItem):
-            status = item.status
-        elif isinstance(item, dict):
-            status = str(item.get("status", ""))
-        else:
-            status = str(getattr(item, "status", ""))
-
-        if status == "setup_only":
-            count += 1
-
-    return count
+    return sum(
+        1
+        for item in storyboard.foreshadowing
+        if item.status == "setup_only"
+    )
 
 
 def build_render_output_path(output_path: Path) -> Path:
@@ -487,7 +439,10 @@ def export_render_input(
     """Export a render-friendly JSON file derived from a storyboard."""
     render_project = RenderAdapter().storyboard_to_render_project(storyboard)
     render_output_path = build_render_output_path(storyboard_output_path)
-    write_json(payload=asdict(render_project), output_path=render_output_path)
+    write_json(
+        payload=render_project.model_dump(mode="json"),
+        output_path=render_output_path,
+    )
     return render_project, render_output_path
 
 
@@ -509,32 +464,20 @@ def build_render_metadata(render_project: RenderProject | None) -> dict[str, int
 
 def get_arc_count(storyboard: Storyboard) -> int:
     """Return the current arc count without exposing full arc content."""
-    if isinstance(storyboard.arc_plan, ArcPlan):
-        return len(storyboard.arc_plan.arcs)
-    if isinstance(storyboard.arc_plan, dict):
-        arcs = storyboard.arc_plan.get("arcs", [])
-        return len(arcs) if isinstance(arcs, list) else 0
-    return 0
+    if storyboard.arc_plan is None:
+        return 0
+    return len(storyboard.arc_plan.arcs)
 
 
 def get_active_arc_id(storyboard: Storyboard) -> str:
     """Return the active arc id from Story Bible or Arc Plan metadata."""
-    if isinstance(storyboard.story_bible, StoryBible):
-        if storyboard.story_bible.active_arc_id:
-            return storyboard.story_bible.active_arc_id
-    elif isinstance(storyboard.story_bible, dict):
-        active_arc_id = storyboard.story_bible.get("active_arc_id")
-        if active_arc_id:
-            return str(active_arc_id)
+    if storyboard.story_bible.active_arc_id:
+        return storyboard.story_bible.active_arc_id
 
-    if isinstance(storyboard.arc_plan, ArcPlan):
+    if storyboard.arc_plan is not None:
         for arc in storyboard.arc_plan.arcs:
             if arc.status == "active":
                 return arc.id
-    elif isinstance(storyboard.arc_plan, dict):
-        for arc in storyboard.arc_plan.get("arcs", []):
-            if isinstance(arc, dict) and arc.get("status") == "active":
-                return str(arc.get("id", ""))
 
     return ""
 

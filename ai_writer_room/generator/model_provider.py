@@ -56,7 +56,7 @@ class LocalModelProvider(BaseModelProvider):
             base_url=base_url,
             api_key=api_key,
             timeout=10.0,
-            max_retries=0,
+            max_retries=3,
         )
 
     def generate_text(self, prompt: str) -> str:
@@ -66,11 +66,16 @@ class LocalModelProvider(BaseModelProvider):
                 model=self.model,
                 messages=[
                     {
+                        "role": "system",
+                        "content": "Always reply with valid JSON only.",
+                    },
+                    {
                         "role": "user",
                         "content": prompt,
                     }
                 ],
-                temperature=0.8,
+                temperature=0.3,
+                response_format={"type": "json_object"},
             )
         except APIConnectionError as exc:
             raise RuntimeError(

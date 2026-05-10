@@ -31,7 +31,6 @@ class RenderAdapter:
         """Convert a Storyboard into a render-friendly project payload."""
         self._current_sub_genre = storyboard.sub_genre
         self._scene_ids = [scene.id for scene in storyboard.scenes]
-
         render_scenes = [
             self.scene_to_render_scene(scene)
             for scene in storyboard.scenes

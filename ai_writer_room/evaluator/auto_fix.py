@@ -6,6 +6,8 @@ from copy import deepcopy
 
 from ai_writer_room.evaluator.forbidden_word_checker import build_forbidden_word_pattern
 from ai_writer_room.evaluator.forbidden_word_config import ForbiddenWordConfig
+from ai_writer_room.memory.memory_summary import MemorySummary
+from ai_writer_room.memory.story_bible import StoryBible
 from ai_writer_room.schemas.storyboard_schema import Storyboard
 
 
@@ -89,12 +91,12 @@ class LocalAutoFixer:
             fixed.model = "unknown"
         if fixed.cost_usd is None:
             fixed.cost_usd = 0.0
-        if not fixed.memory_summary:
-            fixed.memory_summary = {}
+        if fixed.memory_summary is None:
+            fixed.memory_summary = MemorySummary()
         if not fixed.foreshadowing:
             fixed.foreshadowing = []
-        if not fixed.story_bible:
-            fixed.story_bible = {}
+        if fixed.story_bible is None:
+            fixed.story_bible = StoryBible()
         return fixed
 
     def _replace_forbidden_words(self, text: str) -> str:
