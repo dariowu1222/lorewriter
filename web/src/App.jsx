@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { getGenerationModes, getUIContract } from "./api.js";
 import ManualPanel from "./components/ManualPanel.jsx";

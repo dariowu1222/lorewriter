@@ -22,3 +22,11 @@ ai_writer_room/output/*
 
 /logs/
 /output/
+
+# Frontend dependencies and build output
+node_modules/
+web/node_modules/
+dist/
+web/dist/
+.vite/
+web/.vite/

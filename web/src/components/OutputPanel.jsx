@@ -1,3 +1,5 @@
+import React from "react";
+
 function JsonBlock({ title, value }) {
   if (value === undefined || value === null) {
     return null;
@@ -24,7 +26,8 @@ export default function OutputPanel({ output, loading }) {
         <div
           className={output.success ? "status status-ok" : "status status-error"}
         >
-          {output.message || output.error}
+          <div>{output.message || output.error}</div>
+          {!output.success && output.error && <small>{output.error}</small>}
         </div>
       )}
       <JsonBlock title="Storyboard" value={data.storyboard} />

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import unittest
@@ -91,6 +92,42 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertIsNotNone(data["eval_result"])
         self.assertIsNotNone(data["render_project"])
         self.assertEqual(len(data["render_project"]["scenes"]), 12)
+
+    def test_manual_parse_response_with_loose_metadata(self) -> None:
+        """Manual parse should tolerate old/loose long-form metadata shapes."""
+        payload = json.loads(
+            sample_path("sample_manual_response.json").read_text(encoding="utf-8")
+        )
+        payload["arc_plan"] = [
+            {
+                "arc_id": "A01",
+                "name": "世界建立",
+                "start_scene": "S01",
+                "end_scene": "S02",
+            }
+        ]
+        payload["story_bible"] = {
+            "rules": ["R01 規則一"],
+            "characters": [{"name": "主角"}],
+        }
+
+        response = self.client.post(
+            "/api/manual/parse-response",
+            json={
+                "manual_response_text": json.dumps(payload, ensure_ascii=False),
+                "enable_eval": True,
+                "enable_auto_fix": False,
+                "export_render_input": True,
+                "forbidden_words_text": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertTrue(result["success"], result.get("error"))
+        storyboard = result["data"]["storyboard"]
+        self.assertEqual(len(storyboard["scenes"]), 12)
+        self.assertEqual(len(storyboard["arc_plan"]["arcs"]), 6)
 
     def test_openai_generate_missing_key_fails_safely(self) -> None:
         """OpenAI endpoint should fail safely without exposing key details."""

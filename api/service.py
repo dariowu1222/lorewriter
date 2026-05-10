@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from ai_writer_room.config import DEFAULT_MODEL
@@ -59,7 +61,7 @@ def generate_manual_prompt(req: GeneratePromptRequest) -> ApiResponse:
 def parse_manual_response(req: ManualParseRequest) -> ApiResponse:
     """Parse, optionally evaluate/fix, and optionally render a manual response."""
     try:
-        storyboard = StoryboardJsonParser().parse_storyboard(req.manual_response_text)
+        storyboard = _parse_storyboard_for_api(req.manual_response_text)
         result = _finalize_storyboard_payload(
             storyboard=storyboard,
             provider_name="manual",
@@ -98,7 +100,7 @@ def generate_with_openai(req: OpenAIGenerateRequest) -> ApiResponse:
             ignore_budget_guard=req.ignore_budget_guard,
         )
         raw_text = OpenAIModelProvider(model=req.model).generate_text(prompt)
-        storyboard = StoryboardJsonParser().parse_storyboard(raw_text)
+        storyboard = _parse_storyboard_for_api(raw_text)
         result = _finalize_storyboard_payload(
             storyboard=storyboard,
             provider_name="openai",
@@ -143,6 +145,172 @@ def parse_forbidden_words_text(text: str | None) -> dict[str, str]:
             parsed[word] = replacement.strip()
 
     return parsed
+
+
+def _parse_storyboard_for_api(raw_text: str) -> Storyboard:
+    """Parse model output, with a forgiving pass for UI/manual workflows."""
+    parser = StoryboardJsonParser()
+    try:
+        return parser.parse_storyboard(raw_text)
+    except Exception as strict_error:
+        try:
+            payload = json.loads(parser.extract_json_text(raw_text))
+            normalized_payload = _normalize_storyboard_payload(payload)
+            return Storyboard.model_validate(normalized_payload)
+        except Exception as relaxed_error:
+            raise ValueError(
+                "Storyboard response could not be parsed. "
+                f"Strict parse: {strict_error}. "
+                f"Relaxed parse: {relaxed_error}"
+            ) from relaxed_error
+
+
+def _normalize_storyboard_payload(payload: Any) -> dict[str, Any]:
+    """Normalize near-storyboard JSON into the strict v0.1 Storyboard schema."""
+    if isinstance(payload, dict) and isinstance(payload.get("storyboard"), dict):
+        payload = payload["storyboard"]
+    if not isinstance(payload, dict):
+        raise ValueError("Storyboard payload must be a JSON object.")
+
+    raw_scenes = payload.get("scenes")
+    if not isinstance(raw_scenes, list):
+        raise ValueError("Storyboard payload must include a scenes list.")
+    if len(raw_scenes) != 12:
+        raise ValueError(
+            f"Storyboard payload must include exactly 12 scenes; got {len(raw_scenes)}."
+        )
+
+    return {
+        "title": _text(payload.get("title") or payload.get("name"), "Manual Storyboard"),
+        "sub_genre": _text(
+            payload.get("sub_genre") or payload.get("genre"),
+            "manual",
+        ),
+        "target_duration_sec": _int(
+            payload.get("target_duration_sec") or payload.get("duration_sec"),
+            180,
+        ),
+        "generated_at": _text(
+            payload.get("generated_at"),
+            datetime.now(UTC).isoformat(),
+        ),
+        "model": _text(payload.get("model"), "manual"),
+        "cost_usd": float(payload.get("cost_usd") or 0.0),
+        "prologue": _text(payload.get("prologue"), ""),
+        "story_bible": {},
+        "scenes": [
+            _normalize_scene_payload(scene, index)
+            for index, scene in enumerate(raw_scenes, start=1)
+        ],
+        "memory_summary": {},
+        "foreshadowing": [],
+        "arc_plan": None,
+    }
+
+
+def _normalize_scene_payload(scene: Any, index: int) -> dict[str, Any]:
+    """Normalize one near-scene object into the strict Scene schema."""
+    if not isinstance(scene, dict):
+        scene = {"narration_zh": str(scene)}
+
+    scene_id = _text(scene.get("id") or scene.get("scene_id"), f"S{index:02d}")
+    title = _text(scene.get("title") or scene.get("name"), scene_id)
+    narration = _text(
+        scene.get("narration_zh")
+        or scene.get("narration")
+        or scene.get("summary")
+        or scene.get("description")
+        or scene.get("text"),
+        "",
+    )
+
+    return {
+        "id": scene_id,
+        "title": title,
+        "function": _text(
+            scene.get("function") or scene.get("purpose") or scene.get("role"),
+            title,
+        ),
+        "mood": _text(scene.get("mood"), "神秘"),
+        "bgm_intensity": min(max(_int(scene.get("bgm_intensity"), 3), 1), 5),
+        "time_in_story": _text(
+            scene.get("time_in_story") or scene.get("time_range"),
+            _default_time_range(index),
+        ),
+        "narration_zh": narration,
+        "dialogue_lines": _normalize_dialogue_lines(scene.get("dialogue_lines", [])),
+        "rule_refs": _string_list(
+            scene.get("rule_refs")
+            or scene.get("rules")
+            or scene.get("rule_signals")
+            or []
+        ),
+        "foreshadow_refs": _string_list(
+            scene.get("foreshadow_refs")
+            or scene.get("foreshadows")
+            or scene.get("foreshadowing")
+            or []
+        ),
+    }
+
+
+def _normalize_dialogue_lines(value: Any) -> list[dict[str, str]]:
+    """Normalize dialogue lines to speaker/text dicts."""
+    if not isinstance(value, list):
+        return []
+
+    lines: list[dict[str, str]] = []
+    for item in value:
+        if isinstance(item, dict):
+            lines.append(
+                {
+                    "speaker": _text(item.get("speaker"), "旁白"),
+                    "text": _text(item.get("text") or item.get("line"), ""),
+                }
+            )
+        else:
+            lines.append({"speaker": "旁白", "text": str(item)})
+    return lines
+
+
+def _string_list(value: Any) -> list[str]:
+    """Normalize loose list/string values into a string list."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if not isinstance(value, list):
+        return [str(value)]
+    return [
+        str(item.get("id") or item.get("rule_id") or item.get("text") or item)
+        if isinstance(item, dict)
+        else str(item)
+        for item in value
+        if item is not None
+    ]
+
+
+def _default_time_range(index: int) -> str:
+    """Return a 15-second default scene time range."""
+    start = (index - 1) * 15
+    end = index * 15
+    return f"{start // 60:02d}:{start % 60:02d}-{end // 60:02d}:{end % 60:02d}"
+
+
+def _text(value: Any, default: str) -> str:
+    """Return a safe string value."""
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
+def _int(value: Any, default: int) -> int:
+    """Return a safe integer value."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _finalize_storyboard_payload(

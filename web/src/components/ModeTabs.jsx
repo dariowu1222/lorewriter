@@ -1,3 +1,5 @@
+import React from "react";
+
 export default function ModeTabs({ tabs, activeMode, onChange }) {
   return (
     <nav className="mode-tabs" aria-label="Generation modes">
