@@ -95,11 +95,20 @@ export default function App() {
     });
   }, [activeMode, sharedState, output]);
 
-  function saveWorkspaceCache() {
+  function saveWorkspaceCache(snapshotPatch = {}) {
+    const nextSharedState = {
+      ...sharedState,
+      ...(snapshotPatch.sharedState || {}),
+    };
+    const nextOutput =
+      Object.prototype.hasOwnProperty.call(snapshotPatch, "output")
+        ? snapshotPatch.output
+        : output;
+
     writeWorkspaceCache({
       activeMode,
-      sharedState,
-      output,
+      sharedState: nextSharedState,
+      output: nextOutput,
     });
   }
 

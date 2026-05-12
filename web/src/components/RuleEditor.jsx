@@ -68,7 +68,23 @@ export default function RuleEditor({
   }
 
   function saveRules() {
-    onSave?.();
+    const savedRules = rules.map((rule, index) => normalizeRule(rule, index));
+    const savedOutput = {
+      success: true,
+      message: "Rules saved.",
+      data: {
+        rules: savedRules,
+      },
+    };
+
+    onChange({ generated_rules: savedRules });
+    setOutput(savedOutput);
+    onSave?.({
+      sharedState: {
+        generated_rules: savedRules,
+      },
+      output: savedOutput,
+    });
     setSaveMessage("規則已儲存到本機快取");
     window.setTimeout(() => setSaveMessage(""), 2000);
   }
