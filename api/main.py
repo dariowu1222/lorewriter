@@ -12,6 +12,7 @@ from api.schemas import (
     GenerateRulesRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
+    ProductionRequest,
 )
 
 
@@ -77,3 +78,27 @@ def manual_parse_response(req: ManualParseRequest) -> ApiResponse:
 def openai_generate(req: OpenAIGenerateRequest) -> ApiResponse:
     """Generate a storyboard through OpenAI."""
     return service.generate_with_openai(req)
+
+
+@app.post("/api/production/voice", response_model=ApiResponse)
+def production_voice(req: ProductionRequest) -> ApiResponse:
+    """Build a local voice script package."""
+    return service.generate_voice_project(req)
+
+
+@app.post("/api/production/images", response_model=ApiResponse)
+def production_images(req: ProductionRequest) -> ApiResponse:
+    """Build a local image prompt package."""
+    return service.generate_image_prompt_project(req)
+
+
+@app.post("/api/production/storyboard", response_model=ApiResponse)
+def production_storyboard(req: ProductionRequest) -> ApiResponse:
+    """Build a local shot storyboard package."""
+    return service.generate_shot_storyboard(req)
+
+
+@app.post("/api/production/video", response_model=ApiResponse)
+def production_video(req: ProductionRequest) -> ApiResponse:
+    """Build a local video manifest package."""
+    return service.generate_video_manifest(req)

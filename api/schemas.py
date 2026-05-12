@@ -91,6 +91,14 @@ class OpenAIGenerateRequest(BaseModel):
     visual_style: str | None = None
 
 
+class ProductionRequest(BaseModel):
+    """Request to build next-step local production payloads."""
+
+    storyboard: dict | None = None
+    render_project: dict | None = None
+    visual_style: str | None = None
+
+
 class ApiResponse(BaseModel):
     """Consistent API response envelope."""
 

@@ -9,7 +9,7 @@ import StorySummaryCard from "./StorySummaryCard.jsx";
 import TechnicalDebugPanel from "./TechnicalDebugPanel.jsx";
 import WorldInfoCard from "./WorldInfoCard.jsx";
 
-export default function OutputPanel({ output, loading }) {
+export default function OutputPanel({ output, loading, setOutput, setLoading }) {
   const data = output?.data || {};
   const storyboard = data.storyboard;
   const storyBible = storyboard?.story_bible;
@@ -44,7 +44,12 @@ export default function OutputPanel({ output, loading }) {
       <ArcTimeline arcPlan={storyboard?.arc_plan} />
       <EvalSummary evalResult={data.eval_result} />
       <RenderStatusCard renderProject={data.render_project} />
-      <NextStepPanel />
+      <NextStepPanel
+        output={output}
+        setOutput={setOutput}
+        loading={loading}
+        setLoading={setLoading}
+      />
       <TechnicalDebugPanel output={output} />
     </aside>
   );

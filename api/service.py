@@ -20,6 +20,7 @@ from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.model_provider import OpenAIModelProvider
 from ai_writer_room.generator.prompt_builder import PromptBuilder
 from ai_writer_room.generator.rule_engine import RuleEngine
+from ai_writer_room.render.production_adapter import ProductionAdapter
 from ai_writer_room.render.render_adapter import RenderAdapter
 from ai_writer_room.render.render_schema import RenderProject
 from ai_writer_room.schemas.storyboard_schema import Storyboard
@@ -30,6 +31,7 @@ from api.schemas import (
     GenerateRulesRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
+    ProductionRequest,
 )
 
 
@@ -160,6 +162,66 @@ def generate_with_openai(req: OpenAIGenerateRequest) -> ApiResponse:
     )
 
 
+def generate_voice_project(req: ProductionRequest) -> ApiResponse:
+    """Build a local TTS script package from the current render project."""
+    try:
+        render_project = _render_project_from_production_request(req)
+        voice_project = ProductionAdapter().build_voice_project(render_project)
+    except Exception as exc:
+        return _failure("Voice package generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="Voice package ready.",
+        data={"voice_project": voice_project.model_dump(mode="json")},
+    )
+
+
+def generate_image_prompt_project(req: ProductionRequest) -> ApiResponse:
+    """Build a local image prompt package from the current render project."""
+    try:
+        render_project = _render_project_from_production_request(req)
+        image_project = ProductionAdapter().build_image_prompt_project(render_project)
+    except Exception as exc:
+        return _failure("Image prompt package generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="Image prompt package ready.",
+        data={"image_prompt_project": image_project.model_dump(mode="json")},
+    )
+
+
+def generate_shot_storyboard(req: ProductionRequest) -> ApiResponse:
+    """Build a local shot storyboard package from the current render project."""
+    try:
+        render_project = _render_project_from_production_request(req)
+        shot_storyboard = ProductionAdapter().build_shot_storyboard(render_project)
+    except Exception as exc:
+        return _failure("Shot storyboard generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="Shot storyboard ready.",
+        data={"shot_storyboard": shot_storyboard.model_dump(mode="json")},
+    )
+
+
+def generate_video_manifest(req: ProductionRequest) -> ApiResponse:
+    """Build a local video assembly manifest from the current render project."""
+    try:
+        render_project = _render_project_from_production_request(req)
+        video_manifest = ProductionAdapter().build_video_manifest(render_project)
+    except Exception as exc:
+        return _failure("Video manifest generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="Video manifest ready.",
+        data={"video_manifest": video_manifest.model_dump(mode="json")},
+    )
+
+
 def parse_forbidden_words_text(text: str | None) -> dict[str, str]:
     """Parse textarea forbidden-word lines into replacement mappings."""
     parsed: dict[str, str] = {}
@@ -179,6 +241,34 @@ def parse_forbidden_words_text(text: str | None) -> dict[str, str]:
             parsed[word] = replacement.strip()
 
     return parsed
+
+
+def _render_project_from_production_request(
+    req: ProductionRequest,
+) -> RenderProject:
+    """Create or validate render input for next-step local production."""
+    if req.render_project:
+        render_project = RenderProject.model_validate(req.render_project)
+    elif req.storyboard:
+        storyboard = Storyboard.model_validate(req.storyboard)
+        render_project = RenderAdapter().storyboard_to_render_project(storyboard)
+    else:
+        raise ValueError("Production step requires storyboard or render_project.")
+
+    if req.visual_style:
+        render_project = render_project.model_copy(
+            update={
+                "visual_theme": req.visual_style,
+                "scenes": [
+                    scene.model_copy(update={"visual_style": req.visual_style})
+                    for scene in render_project.scenes
+                ],
+            },
+        )
+
+    if not render_project.scenes:
+        raise ValueError("Production step requires at least one render scene.")
+    return render_project
 
 
 def _build_creator_prompt(req: GeneratePromptRequest | OpenAIGenerateRequest) -> str:

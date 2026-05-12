@@ -357,6 +357,32 @@ pre {
   gap: 8px;
 }
 
+.production-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.production-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e0e5ec;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.production-card span,
+.production-card small {
+  color: #5a6472;
+  font-size: 12px;
+}
+
+.production-card strong {
+  font-size: 18px;
+}
+
 pre {
   max-height: 420px;
   overflow: auto;
@@ -382,6 +408,7 @@ pre {
   .form-grid,
   .summary-grid,
   .next-step-row,
+  .production-grid,
   .rule-row {
     grid-template-columns: 1fr;
   }

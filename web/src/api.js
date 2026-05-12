@@ -51,3 +51,31 @@ export function generateWithOpenAI(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function generateVoiceProject(payload) {
+  return request("/api/production/voice", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateImagePromptProject(payload) {
+  return request("/api/production/images", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateShotStoryboard(payload) {
+  return request("/api/production/storyboard", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateVideoManifest(payload) {
+  return request("/api/production/video", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

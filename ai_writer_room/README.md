@@ -372,6 +372,27 @@ generation requests. The backend stores creator controls in Story Bible
 metadata, including world setting, horror style, pacing style, ending style,
 protagonist type, and visual style.
 
+## Local Production Handoff
+
+The next-step workflow buttons now produce local handoff packages:
+
+- 生成語音: TTS script package
+- 生成圖片: image prompt package
+- 生成分鏡: shot storyboard package
+- 生成影片: video assembly manifest
+
+These are JSON contracts for the future production pipeline. v0.1 does not
+generate audio files, image files, mp4 files, or call ffmpeg.
+
+Backend endpoints:
+
+```text
+POST /api/production/voice
+POST /api/production/images
+POST /api/production/storyboard
+POST /api/production/video
+```
+
 ## Future Web UI Tabs
 
 Tab 1:

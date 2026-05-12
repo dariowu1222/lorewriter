@@ -181,7 +181,12 @@ export default function App() {
           )}
         </div>
 
-        <OutputPanel output={output} loading={loading} />
+        <OutputPanel
+          output={output}
+          loading={loading}
+          setOutput={setOutput}
+          setLoading={setLoading}
+        />
       </section>
     </main>
   );

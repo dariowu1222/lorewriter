@@ -14,6 +14,10 @@ function metadata(output) {
     unresolved_foreshadow_count:
       evalResult.story_memory_check?.stats?.unresolved_foreshadow_count || 0,
     render_scene_count: renderProject.scenes?.length || 0,
+    voice_line_count: data.voice_project?.lines?.length || 0,
+    image_prompt_count: data.image_prompt_project?.items?.length || 0,
+    shot_count: data.shot_storyboard?.shots?.length || 0,
+    video_manifest_scene_count: data.video_manifest?.scenes?.length || 0,
   };
 }
 
