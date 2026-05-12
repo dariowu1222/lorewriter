@@ -10,6 +10,8 @@ from api.schemas import (
     ApiResponse,
     GeneratePromptRequest,
     GenerateRulesRequest,
+    ManualEvalImportRequest,
+    ManualEvalPromptRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
     ProductionRequest,
@@ -78,6 +80,18 @@ def manual_parse_response(req: ManualParseRequest) -> ApiResponse:
 def openai_generate(req: OpenAIGenerateRequest) -> ApiResponse:
     """Generate a storyboard through OpenAI."""
     return service.generate_with_openai(req)
+
+
+@app.post("/api/eval/manual-prompt", response_model=ApiResponse)
+def eval_manual_prompt(req: ManualEvalPromptRequest) -> ApiResponse:
+    """Build a prompt for free manual LLM-as-judge evaluation."""
+    return service.generate_manual_eval_prompt(req)
+
+
+@app.post("/api/eval/manual-import", response_model=ApiResponse)
+def eval_manual_import(req: ManualEvalImportRequest) -> ApiResponse:
+    """Import a manually pasted evaluator JSON response."""
+    return service.import_manual_eval(req)
 
 
 @app.post("/api/production/voice", response_model=ApiResponse)

@@ -395,6 +395,35 @@ POST /api/production/storyboard
 POST /api/production/video
 ```
 
+## Free Manual Evaluation
+
+The visible evaluator summary is a real local deterministic check. It does not
+call OpenAI or any external API. It checks rule references, forbidden words,
+Story Bible / foreshadowing, Arc structure, generation mode, and render input.
+
+For subjective story quality checks, the web UI also supports a free manual
+evaluation workflow:
+
+```text
+local evaluator result
+↓
+generate evaluation prompt
+↓
+paste into ChatGPT / Claude / Gemini manually
+↓
+paste JSON judge result back into the web UI
+```
+
+Endpoints:
+
+```text
+POST /api/eval/manual-prompt
+POST /api/eval/manual-import
+```
+
+This manual judge flow is optional, uses no project API key, and is intended to
+cover pacing, twist strength, atmosphere, and creative suggestions.
+
 ## Future Web UI Tabs
 
 Tab 1:

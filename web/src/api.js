@@ -52,6 +52,20 @@ export function generateWithOpenAI(payload) {
   });
 }
 
+export function generateManualEvalPrompt(payload) {
+  return request("/api/eval/manual-prompt", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function importManualEval(payload) {
+  return request("/api/eval/manual-import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateVoiceProject(payload) {
   return request("/api/production/voice", {
     method: "POST",

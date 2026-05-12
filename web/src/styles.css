@@ -356,6 +356,58 @@ pre {
   padding-left: 20px;
 }
 
+.creator-card h4 {
+  margin: 14px 0 8px;
+  font-size: 14px;
+}
+
+.manual-eval-result {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e0e5ec;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  background: #f8fafc;
+}
+
+.manual-eval-result p,
+.manual-eval-result ul {
+  margin: 0;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-row strong {
+  font-size: 22px;
+}
+
+.manual-eval-panel {
+  margin-top: 12px;
+  border-top: 1px solid #e0e5ec;
+  padding-top: 12px;
+}
+
+.manual-eval-panel summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.manual-eval-panel textarea {
+  margin-top: 10px;
+}
+
+.manual-eval-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .next-step-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -29,6 +29,8 @@ from api.schemas import (
     ApiResponse,
     GeneratePromptRequest,
     GenerateRulesRequest,
+    ManualEvalImportRequest,
+    ManualEvalPromptRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
     ProductionRequest,
@@ -162,6 +164,34 @@ def generate_with_openai(req: OpenAIGenerateRequest) -> ApiResponse:
     )
 
 
+def generate_manual_eval_prompt(req: ManualEvalPromptRequest) -> ApiResponse:
+    """Build a free manual-evaluation prompt without calling any model."""
+    try:
+        prompt = _build_manual_eval_prompt(req)
+    except Exception as exc:
+        return _failure("Manual evaluation prompt generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="人工評估 Prompt 已產生。",
+        data={"manual_eval_prompt": prompt},
+    )
+
+
+def import_manual_eval(req: ManualEvalImportRequest) -> ApiResponse:
+    """Parse a manually pasted evaluator response into a stable contract."""
+    try:
+        manual_eval = _parse_manual_eval_text(req.manual_eval_text)
+    except Exception as exc:
+        return _failure("Manual evaluation import failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="人工評估已匯入。",
+        data={"manual_eval": manual_eval},
+    )
+
+
 def generate_voice_project(req: ProductionRequest) -> ApiResponse:
     """Build a local TTS script package from the current render project."""
     try:
@@ -220,6 +250,114 @@ def generate_video_manifest(req: ProductionRequest) -> ApiResponse:
         message="影片組裝清單已產生。",
         data={"video_manifest": video_manifest.model_dump(mode="json")},
     )
+
+
+def _build_manual_eval_prompt(req: ManualEvalPromptRequest) -> str:
+    """Build a detailed judge prompt for copy/paste evaluation workflows."""
+    storyboard_json = json.dumps(req.storyboard, ensure_ascii=False, indent=2)
+    local_eval_json = json.dumps(req.eval_result or {}, ensure_ascii=False, indent=2)
+    forbidden_words = _load_forbidden_words(req.forbidden_words_text)
+    forbidden_words_text = "、".join(forbidden_words.keys())
+
+    return f"""你是 AI Writer Room 的故事評估員，請評估以下規則怪談 storyboard。
+
+重要：
+- 不要改寫故事。
+- 不要輸出 Markdown。
+- 只輸出 JSON。
+- 請用繁體中文。
+- 這是人工免費評估流程，不需要任何 API 工具。
+
+請特別評估：
+1. 規則是否真的影響劇情，而不是裝飾。
+2. 每條規則是否有驗證、衝突或代價。
+3. 中段反轉、主反轉、尾刀是否有力。
+4. 主角行動是否清楚。
+5. 氣氛是否具體，不要只靠抽象恐怖形容詞。
+6. 伏筆是否有 payoff，未 payoff 是否值得保留。
+7. 是否有禁忌詞或空泛描述。
+8. 是否適合下一步做語音、圖片、分鏡、影片。
+
+禁忌詞參考：
+{forbidden_words_text}
+
+本地結構檢查結果：
+{local_eval_json}
+
+請只回傳以下 JSON 格式：
+{{
+  "overall_score": 1,
+  "passed": false,
+  "summary": "一句話總評",
+  "strengths": ["優點 1", "優點 2"],
+  "issues": ["問題 1", "問題 2"],
+  "suggestions": ["修正建議 1", "修正建議 2"],
+  "checks": {{
+    "rules": "規則設計評語",
+    "pacing": "節奏評語",
+    "twist": "反轉評語",
+    "atmosphere": "氣氛評語",
+    "foreshadowing": "伏筆評語",
+    "render_readiness": "製作可行性評語"
+  }}
+}}
+
+Storyboard JSON：
+{storyboard_json}
+"""
+
+
+def _parse_manual_eval_text(raw_text: str) -> dict[str, Any]:
+    """Parse manual evaluator JSON, including fenced JSON responses."""
+    if not raw_text or not raw_text.strip():
+        raise ValueError("Manual evaluation text is empty.")
+
+    parser = StoryboardJsonParser()
+    try:
+        payload = json.loads(parser.extract_json_text(raw_text))
+    except Exception as exc:
+        preview = raw_text.strip()[:500]
+        raise ValueError(
+            "Manual evaluation must be valid JSON. "
+            f"Raw text preview: {preview}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("Manual evaluation JSON must be an object.")
+
+    return {
+        "overall_score": _clamp_score(payload.get("overall_score")),
+        "passed": bool(payload.get("passed", False)),
+        "summary": str(payload.get("summary") or ""),
+        "strengths": _string_list(payload.get("strengths")),
+        "issues": _string_list(payload.get("issues")),
+        "suggestions": _string_list(payload.get("suggestions")),
+        "checks": _string_dict(payload.get("checks")),
+        "source": "manual_paste",
+    }
+
+
+def _clamp_score(value: Any) -> int:
+    """Clamp a manual evaluator score to 1-5."""
+    try:
+        score = int(value)
+    except (TypeError, ValueError):
+        score = 1
+    return max(1, min(5, score))
+
+
+def _string_list(value: Any) -> list[str]:
+    """Normalize arbitrary list-like values into a list of strings."""
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _string_dict(value: Any) -> dict[str, str]:
+    """Normalize arbitrary mapping values into string pairs."""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): str(item) for key, item in value.items()}
 
 
 def parse_forbidden_words_text(text: str | None) -> dict[str, str]:

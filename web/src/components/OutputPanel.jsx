@@ -42,7 +42,12 @@ export default function OutputPanel({ output, loading, setOutput, setLoading }) 
       <RuleListCard rules={rules} />
       <WorldInfoCard storyBible={storyBible} />
       <ArcTimeline arcPlan={storyboard?.arc_plan} />
-      <EvalSummary evalResult={data.eval_result} />
+      <EvalSummary
+        output={output}
+        loading={loading}
+        setOutput={setOutput}
+        setLoading={setLoading}
+      />
       <RenderStatusCard renderProject={data.render_project} />
       <NextStepPanel
         output={output}

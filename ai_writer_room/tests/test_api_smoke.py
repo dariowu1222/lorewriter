@@ -93,6 +93,55 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertIsNotNone(data["render_project"])
         self.assertEqual(len(data["render_project"]["scenes"]), 12)
 
+    def test_manual_eval_prompt_and_import(self) -> None:
+        """Manual evaluator flow should not require API access."""
+        storyboard = json.loads(
+            sample_path("sample_manual_response.json").read_text(encoding="utf-8")
+        )
+
+        prompt_response = self.client.post(
+            "/api/eval/manual-prompt",
+            json={
+                "storyboard": storyboard,
+                "eval_result": {"passed": True},
+                "forbidden_words_text": "bad=good",
+            },
+        )
+
+        self.assertEqual(prompt_response.status_code, 200)
+        prompt_payload = prompt_response.json()
+        self.assertTrue(prompt_payload["success"])
+        prompt = prompt_payload["data"]["manual_eval_prompt"]
+        self.assertIn("只輸出 JSON", prompt)
+        self.assertIn("Storyboard JSON", prompt)
+
+        import_response = self.client.post(
+            "/api/eval/manual-import",
+            json={
+                "manual_eval_text": """
+```json
+{
+  "overall_score": 4,
+  "passed": true,
+  "summary": "Good draft.",
+  "strengths": ["Clear rules"],
+  "issues": ["Payoff can be sharper"],
+  "suggestions": ["Strengthen the final beat"],
+  "checks": {"rules": "usable"}
+}
+```
+""",
+            },
+        )
+
+        self.assertEqual(import_response.status_code, 200)
+        import_payload = import_response.json()
+        self.assertTrue(import_payload["success"])
+        manual_eval = import_payload["data"]["manual_eval"]
+        self.assertEqual(manual_eval["overall_score"], 4)
+        self.assertTrue(manual_eval["passed"])
+        self.assertEqual(manual_eval["source"], "manual_paste")
+
     def test_manual_parse_response_with_loose_metadata(self) -> None:
         """Manual parse should tolerate old/loose long-form metadata shapes."""
         payload = json.loads(

@@ -99,6 +99,20 @@ class ProductionRequest(BaseModel):
     visual_style: str | None = None
 
 
+class ManualEvalPromptRequest(BaseModel):
+    """Request to build a copy/paste prompt for free manual evaluation."""
+
+    storyboard: dict
+    eval_result: dict | None = None
+    forbidden_words_text: str | None = None
+
+
+class ManualEvalImportRequest(BaseModel):
+    """Request to import a manually pasted judge response."""
+
+    manual_eval_text: str
+
+
 class ApiResponse(BaseModel):
     """Consistent API response envelope."""
 
