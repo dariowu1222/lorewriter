@@ -5,23 +5,63 @@ import ManualPanel from "./components/ManualPanel.jsx";
 import ModeTabs from "./components/ModeTabs.jsx";
 import OpenAIPanel from "./components/OpenAIPanel.jsx";
 import OutputPanel from "./components/OutputPanel.jsx";
+import RuleEditor from "./components/RuleEditor.jsx";
 import SharedForm from "./components/SharedForm.jsx";
+
+const WORKSPACE_CACHE_KEY = "ai_writer_room.creator_workspace.v1";
 
 const defaultSharedState = {
   sub_genre: "地鐵末班車",
+  world_setting: "現代都市",
+  horror_style: "規則恐怖",
+  pacing_style: "高壓",
+  ending_style: "尾刀",
+  protagonist_type: "夜班人員",
+  object_focus: "末班車票",
+  visual_style: "cinematic",
   duration: 180,
   enable_eval: true,
   enable_auto_fix: false,
   export_render_input: true,
   forbidden_words: "",
+  rule_count: 5,
+  generated_rules: [],
+  manual_prompt_text: "",
+  manual_response_text: "",
 };
 
+function loadWorkspaceCache() {
+  try {
+    const cached = localStorage.getItem(WORKSPACE_CACHE_KEY);
+    if (!cached) {
+      return {};
+    }
+    return JSON.parse(cached);
+  } catch {
+    return {};
+  }
+}
+
+function writeWorkspaceCache(snapshot) {
+  try {
+    localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Ignore storage quota or private-mode failures; generation can continue.
+  }
+}
+
 export default function App() {
+  const cachedWorkspace = useMemo(loadWorkspaceCache, []);
   const [contract, setContract] = useState(null);
   const [generationModes, setGenerationModes] = useState([]);
-  const [activeMode, setActiveMode] = useState("manual");
-  const [sharedState, setSharedState] = useState(defaultSharedState);
-  const [output, setOutput] = useState(null);
+  const [activeMode, setActiveMode] = useState(
+    cachedWorkspace.activeMode || "manual",
+  );
+  const [sharedState, setSharedState] = useState({
+    ...defaultSharedState,
+    ...(cachedWorkspace.sharedState || {}),
+  });
+  const [output, setOutput] = useState(cachedWorkspace.output || null);
   const [loading, setLoading] = useState(false);
   const [bootError, setBootError] = useState("");
 
@@ -47,6 +87,29 @@ export default function App() {
     [activeMode, generationModes],
   );
 
+  useEffect(() => {
+    writeWorkspaceCache({
+      activeMode,
+      sharedState,
+      output,
+    });
+  }, [activeMode, sharedState, output]);
+
+  function saveWorkspaceCache() {
+    writeWorkspaceCache({
+      activeMode,
+      sharedState,
+      output,
+    });
+  }
+
+  function updateSharedState(nextPartial) {
+    setSharedState((current) => ({
+      ...current,
+      ...nextPartial,
+    }));
+  }
+
   if (bootError) {
     return (
       <main className="app-shell">
@@ -60,7 +123,7 @@ export default function App() {
       <header className="app-header">
         <div>
           <p className="eyebrow">AI Writer Room v0.1</p>
-          <h1>規則怪談生成室</h1>
+          <h1>AI Horror Production Workspace</h1>
         </div>
         <div className="mode-summary">
           {activeModeInfo?.display_name || activeMode}
@@ -75,6 +138,15 @@ export default function App() {
 
       <section className="workspace">
         <div className="control-column">
+          <RuleEditor
+            value={sharedState}
+            onChange={updateSharedState}
+            loading={loading}
+            setLoading={setLoading}
+            setOutput={setOutput}
+            onSave={saveWorkspaceCache}
+          />
+
           <SharedForm
             fields={contract?.shared_fields || []}
             value={sharedState}
@@ -84,7 +156,7 @@ export default function App() {
           {activeMode === "manual" ? (
             <ManualPanel
               sharedState={sharedState}
-              fields={contract?.manual_fields || []}
+              onSharedStateChange={updateSharedState}
               loading={loading}
               setLoading={setLoading}
               setOutput={setOutput}

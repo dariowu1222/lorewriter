@@ -9,6 +9,7 @@ from api import service
 from api.schemas import (
     ApiResponse,
     GeneratePromptRequest,
+    GenerateRulesRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
 )
@@ -52,6 +53,12 @@ def generation_modes() -> ApiResponse:
         message="Generation modes loaded.",
         data={"modes": service.list_generation_modes()},
     )
+
+
+@app.post("/api/rules/generate", response_model=ApiResponse)
+def rules_generate(req: GenerateRulesRequest) -> ApiResponse:
+    """Generate editable rules for the creator workflow."""
+    return service.generate_rules(req)
 
 
 @app.post("/api/manual/generate-prompt", response_model=ApiResponse)

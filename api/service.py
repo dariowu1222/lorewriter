@@ -19,6 +19,7 @@ from ai_writer_room.generate_storyboard import (
 from ai_writer_room.generator.json_parser import StoryboardJsonParser
 from ai_writer_room.generator.model_provider import OpenAIModelProvider
 from ai_writer_room.generator.prompt_builder import PromptBuilder
+from ai_writer_room.generator.rule_engine import RuleEngine
 from ai_writer_room.render.render_adapter import RenderAdapter
 from ai_writer_room.render.render_schema import RenderProject
 from ai_writer_room.schemas.storyboard_schema import Storyboard
@@ -26,6 +27,7 @@ from ai_writer_room.schemas.storyboard_schema import Storyboard
 from api.schemas import (
     ApiResponse,
     GeneratePromptRequest,
+    GenerateRulesRequest,
     ManualParseRequest,
     OpenAIGenerateRequest,
 )
@@ -41,13 +43,46 @@ def list_generation_modes() -> list[dict[str, Any]]:
     return list_generation_modes_payload()
 
 
+def generate_rules(req: GenerateRulesRequest) -> ApiResponse:
+    """Generate editable mock rules for the rule-first creator workflow."""
+    try:
+        rules = RuleEngine().build_mock_rules(
+            sub_genre=req.sub_genre,
+            rules_count=min(req.rule_count, 5),
+        )
+        while len(rules) < req.rule_count:
+            index = len(rules) + 1
+            rules.append(
+                type(rules[0])(
+                    id=f"R{index:02d}",
+                    text=f"{req.sub_genre} 的補充規則 {index}：不要相信重複出現的指示。",
+                    category="補充規則",
+                    is_visual=False,
+                    expected_scene_ids=[],
+                )
+            )
+        payload = [
+            {
+                "id": rule.id,
+                "text": rule.text,
+                "category": rule.category,
+            }
+            for rule in rules
+        ]
+    except Exception as exc:
+        return _failure("Rule generation failed.", exc)
+
+    return ApiResponse(
+        success=True,
+        message="Rules generated.",
+        data={"rules": payload},
+    )
+
+
 def generate_manual_prompt(req: GeneratePromptRequest) -> ApiResponse:
     """Generate a prompt for manual copy/paste workflows."""
     try:
-        prompt = PromptBuilder().build_rule_horror_prompt(
-            sub_genre=req.sub_genre,
-            duration_sec=req.duration,
-        )
+        prompt = _build_creator_prompt(req)
     except Exception as exc:
         return _failure("Manual prompt generation failed.", exc)
 
@@ -69,6 +104,7 @@ def parse_manual_response(req: ManualParseRequest) -> ApiResponse:
             enable_auto_fix=req.enable_auto_fix,
             export_render_input=req.export_render_input,
             forbidden_words_text=req.forbidden_words_text,
+            creator_request=req,
         )
     except Exception as exc:
         return _failure("Manual response parse failed.", exc)
@@ -89,10 +125,7 @@ def generate_with_openai(req: OpenAIGenerateRequest) -> ApiResponse:
         "estimated_output_tokens": 0,
     }
     try:
-        prompt = PromptBuilder().build_rule_horror_prompt(
-            sub_genre=req.sub_genre,
-            duration_sec=req.duration,
-        )
+        prompt = _build_creator_prompt(req)
         run_budget_guard(
             prompt=prompt,
             model_name=req.model or DEFAULT_MODEL,
@@ -109,6 +142,7 @@ def generate_with_openai(req: OpenAIGenerateRequest) -> ApiResponse:
             export_render_input=req.export_render_input,
             forbidden_words_text=req.forbidden_words_text,
             estimated_cost=cost_ref,
+            creator_request=req,
         )
     except Exception as exc:
         return _failure(
@@ -145,6 +179,43 @@ def parse_forbidden_words_text(text: str | None) -> dict[str, str]:
             parsed[word] = replacement.strip()
 
     return parsed
+
+
+def _build_creator_prompt(req: GeneratePromptRequest | OpenAIGenerateRequest) -> str:
+    """Build a generation prompt with creator-facing controls appended."""
+    prompt = PromptBuilder().build_rule_horror_prompt(
+        sub_genre=req.sub_genre,
+        duration_sec=req.duration,
+    )
+    creator_notes = _creator_context_text(req)
+    if not creator_notes:
+        return prompt
+    return f"{prompt}\n\n創作者設定：\n{creator_notes}"
+
+
+def _creator_context_text(req: GeneratePromptRequest | OpenAIGenerateRequest) -> str:
+    """Serialize creator controls into prompt instructions."""
+    lines: list[str] = []
+    for label, attr in (
+        ("世界觀", "world_setting"),
+        ("恐怖類型", "horror_style"),
+        ("節奏", "pacing_style"),
+        ("結局風格", "ending_style"),
+        ("主角類型", "protagonist_type"),
+        ("核心物件", "object_focus"),
+        ("視覺風格", "visual_style"),
+    ):
+        value = getattr(req, attr, None)
+        if value:
+            lines.append(f"- {label}: {value}")
+
+    rules = getattr(req, "generated_rules", [])
+    if rules:
+        lines.append("- 必須使用以下規則作為 story_bible.world_rules 與 scene.rule_refs 的來源：")
+        for rule in rules:
+            lines.append(f"  - {rule.id} [{rule.category}]: {rule.text}")
+
+    return "\n".join(lines)
 
 
 def _parse_storyboard_for_api(raw_text: str) -> Storyboard:
@@ -321,9 +392,12 @@ def _finalize_storyboard_payload(
     export_render_input: bool,
     forbidden_words_text: str | None,
     estimated_cost: dict[str, float | int] | None = None,
+    creator_request: ManualParseRequest | OpenAIGenerateRequest | None = None,
 ) -> dict[str, Any]:
     """Initialize memory, run optional eval/fix/render, and serialize payloads."""
     initialize_story_memory(storyboard)
+    if creator_request is not None:
+        _apply_creator_metadata(storyboard, creator_request)
     forbidden_words = _load_forbidden_words(forbidden_words_text)
     render_project: RenderProject | None = None
     eval_result: dict[str, Any] | None = None
@@ -347,6 +421,8 @@ def _finalize_storyboard_payload(
                 eval_result=eval_result,
             )
             initialize_story_memory(storyboard)
+            if creator_request is not None:
+                _apply_creator_metadata(storyboard, creator_request)
             if export_render_input:
                 render_project = RenderAdapter().storyboard_to_render_project(
                     storyboard,
@@ -368,6 +444,7 @@ def _finalize_storyboard_payload(
     payload: dict[str, Any] = {
         "storyboard": storyboard.model_dump(mode="json"),
         "eval_result": eval_result,
+        "creator_eval_summary": summarize_eval_for_creator(eval_result),
         "render_project": (
             render_project.model_dump(mode="json")
             if render_project is not None
@@ -378,6 +455,91 @@ def _finalize_storyboard_payload(
         payload["estimated_cost"] = dict(estimated_cost)
 
     return payload
+
+
+def summarize_eval_for_creator(eval_result: dict[str, Any] | None) -> list[str]:
+    """Translate evaluator JSON into creator-readable status lines."""
+    if not eval_result:
+        return []
+
+    result = eval_result.get("after_fix", eval_result)
+    forbidden_hits = result.get("forbidden_word_check", {}).get("total_hits", 0)
+    unresolved_count = (
+        result.get("story_memory_check", {})
+        .get("stats", {})
+        .get("unresolved_foreshadow_count", 0)
+    )
+
+    lines = [
+        "✅ 規則完整"
+        if result.get("rule_check", {}).get("passed")
+        else "⚠ 規則引用仍需檢查",
+        "✅ 未偵測到禁忌詞"
+        if forbidden_hits == 0
+        else f"⚠ 偵測到 {forbidden_hits} 個禁忌詞",
+    ]
+
+    if unresolved_count:
+        lines.append(f"⚠ 有 {unresolved_count} 個未完成伏筆")
+    else:
+        lines.append("✅ 伏筆狀態已收斂")
+
+    return lines
+
+
+def _apply_creator_metadata(
+    storyboard: Storyboard,
+    req: ManualParseRequest | OpenAIGenerateRequest,
+) -> None:
+    """Persist creator controls into Story Bible metadata."""
+    story_bible = storyboard.story_bible
+    story_bible.world_setting = req.world_setting or story_bible.world_setting
+    story_bible.horror_style = req.horror_style or story_bible.horror_style
+    story_bible.pacing_style = req.pacing_style or story_bible.pacing_style
+    story_bible.ending_style = req.ending_style or story_bible.ending_style
+    story_bible.protagonist_type = (
+        req.protagonist_type or story_bible.protagonist_type
+    )
+    story_bible.object_focus = req.object_focus or story_bible.object_focus
+    story_bible.visual_style = req.visual_style or story_bible.visual_style
+
+    if req.generated_rules:
+        story_bible.world_rules = [
+            rule
+            for rule in story_bible.world_rules
+            if rule.id not in {item.id for item in req.generated_rules}
+        ]
+        from ai_writer_room.memory.story_bible import WorldRule
+
+        story_bible.world_rules.extend(
+            [
+                WorldRule(
+                    id=rule.id,
+                    text=rule.text,
+                    category=rule.category,
+                    introduced_scene_id=_first_scene_id_for_rule(storyboard, rule.id),
+                    verified_scene_ids=_scene_ids_for_rule(storyboard, rule.id),
+                    broken_scene_ids=[],
+                    is_contradictory=False,
+                )
+                for rule in req.generated_rules
+            ]
+        )
+
+
+def _first_scene_id_for_rule(storyboard: Storyboard, rule_id: str) -> str:
+    """Return the first scene id referencing a rule."""
+    scene_ids = _scene_ids_for_rule(storyboard, rule_id)
+    return scene_ids[0] if scene_ids else "S01"
+
+
+def _scene_ids_for_rule(storyboard: Storyboard, rule_id: str) -> list[str]:
+    """Return scene ids that reference a rule."""
+    return [
+        scene.id
+        for scene in storyboard.scenes
+        if rule_id in scene.rule_refs
+    ]
 
 
 def _load_forbidden_words(text: str | None) -> dict[str, str]:

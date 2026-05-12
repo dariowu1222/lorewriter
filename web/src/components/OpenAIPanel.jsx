@@ -30,6 +30,14 @@ export default function OpenAIPanel({
         export_render_input: sharedState.export_render_input,
         ignore_budget_guard: ignoreBudgetGuard,
         forbidden_words_text: sharedState.forbidden_words,
+        generated_rules: sharedState.generated_rules,
+        world_setting: sharedState.world_setting,
+        horror_style: sharedState.horror_style,
+        pacing_style: sharedState.pacing_style,
+        ending_style: sharedState.ending_style,
+        protagonist_type: sharedState.protagonist_type,
+        object_focus: sharedState.object_focus,
+        visual_style: sharedState.visual_style,
       });
       setOutput(response);
     } catch (error) {

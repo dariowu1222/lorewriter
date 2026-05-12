@@ -42,6 +42,13 @@ class StoryBible(BaseModel):
     world_summary: str = ""
     tone_keywords: list[str] = Field(default_factory=list)
     core_theme: str = ""
+    visual_style: str = ""
+    horror_style: str = ""
+    pacing_style: str = ""
+    ending_style: str = ""
+    protagonist_type: str = ""
+    object_focus: str = ""
+    world_setting: str = ""
     arc_summary: str = ""
     active_arc_id: str = ""
     current_story_stage: str = ""

@@ -24,6 +24,13 @@ export function getGenerationModes() {
   return request("/api/generation-modes");
 }
 
+export function generateRules(payload) {
+  return request("/api/rules/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateManualPrompt(payload) {
   return request("/api/manual/generate-prompt", {
     method: "POST",

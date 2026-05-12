@@ -322,6 +322,56 @@ OpenAI tab flow:
 
 OpenAI keys are read only by the backend. The frontend does not store API keys.
 
+## Creator UX
+
+AI Writer Room is not just a JSON generator. The product direction is:
+
+```text
+AI Horror Production Workspace
+```
+
+The web prototype now presents creator-facing cards for:
+
+- rule editing
+- story summary
+- world information
+- arc structure
+- evaluator summary
+- render readiness
+- next-step production pipeline
+
+Raw JSON is kept behind technical/debug expanders so creators can work from
+story concepts first while engineers can still inspect payloads when needed.
+
+## Rule-first Workflow
+
+The intended creative flow is:
+
+```text
+世界觀
+↓
+規則生成
+↓
+規則審核
+↓
+Storyboard 生成
+↓
+評估
+↓
+Render Pipeline
+```
+
+v0.1 rule generation uses local mock rules through:
+
+```text
+POST /api/rules/generate
+```
+
+Generated rules can be edited in the web UI and passed into Manual/OpenAI
+generation requests. The backend stores creator controls in Story Bible
+metadata, including world setting, horror style, pacing style, ending style,
+protagonist type, and visual style.
+
 ## Future Web UI Tabs
 
 Tab 1:

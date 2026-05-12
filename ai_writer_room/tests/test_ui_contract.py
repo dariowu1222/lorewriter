@@ -39,13 +39,21 @@ class UIContractTests(unittest.TestCase):
         self.assertIn("sub_genre", fields)
         self.assertIn("duration", fields)
         self.assertIn("forbidden_words", fields)
+        self.assertIn("world_setting", fields)
+        self.assertIn("horror_style", fields)
+        self.assertIn("pacing_style", fields)
+        self.assertIn("ending_style", fields)
+        self.assertIn("protagonist_type", fields)
+        self.assertIn("object_focus", fields)
+        self.assertIn("visual_style", fields)
         self.assertEqual(fields["sub_genre"].type, "select")
         self.assertTrue(fields["sub_genre"].required)
         self.assertEqual(fields["duration"].default, 180)
         self.assertEqual(fields["forbidden_words"].type, "textarea")
+        self.assertEqual(fields["object_focus"].type, "combobox")
 
     def test_mode_fields_include_manual_and_openai_fields(self) -> None:
-        """Mode field helpers should expose manual/openai-specific fields."""
+        """Mode field helpers should hide engineering paths and expose OpenAI fields."""
         loader = UIContractLoader()
         manual_fields = {
             field.id for field in loader.get_fields_for_mode("manual")["mode_fields"]
@@ -54,8 +62,8 @@ class UIContractTests(unittest.TestCase):
             field.id for field in loader.get_fields_for_mode("openai")["mode_fields"]
         }
 
-        self.assertIn("manual_prompt_output", manual_fields)
-        self.assertIn("manual_response_input", manual_fields)
+        self.assertNotIn("manual_prompt_output", manual_fields)
+        self.assertNotIn("manual_response_input", manual_fields)
         self.assertIn("model", openai_fields)
         self.assertIn("ignore_budget_guard", openai_fields)
 

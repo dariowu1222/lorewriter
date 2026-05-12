@@ -31,6 +31,100 @@
       ]
     },
     {
+      "id": "world_setting",
+      "label": "世界觀",
+      "type": "select",
+      "required": true,
+      "default": "現代都市",
+      "options": [
+        "現代都市",
+        "90年代",
+        "近未來",
+        "廢棄世界"
+      ]
+    },
+    {
+      "id": "horror_style",
+      "label": "恐怖類型",
+      "type": "select",
+      "required": true,
+      "default": "規則恐怖",
+      "options": [
+        "規則恐怖",
+        "心理恐怖",
+        "認知污染",
+        "生存恐怖"
+      ]
+    },
+    {
+      "id": "pacing_style",
+      "label": "節奏",
+      "type": "select",
+      "required": true,
+      "default": "高壓",
+      "options": [
+        "慢燒",
+        "高壓",
+        "爆發型"
+      ]
+    },
+    {
+      "id": "ending_style",
+      "label": "結局風格",
+      "type": "select",
+      "required": true,
+      "default": "尾刀",
+      "options": [
+        "尾刀",
+        "開放式",
+        "絕望",
+        "假逃脫"
+      ]
+    },
+    {
+      "id": "protagonist_type",
+      "label": "主角類型",
+      "type": "select",
+      "required": true,
+      "default": "夜班人員",
+      "options": [
+        "學生",
+        "上班族",
+        "警察",
+        "醫護",
+        "夜班人員"
+      ]
+    },
+    {
+      "id": "visual_style",
+      "label": "視覺風格",
+      "type": "select",
+      "required": true,
+      "default": "cinematic",
+      "options": [
+        "anime",
+        "cinematic",
+        "VHS",
+        "realism"
+      ]
+    },
+    {
+      "id": "object_focus",
+      "label": "核心物件",
+      "type": "combobox",
+      "required": false,
+      "default": "末班車票",
+      "placeholder": "選擇或輸入故事核心物件",
+      "options": [
+        "末班車票",
+        "員工證",
+        "紅傘",
+        "黑色手機",
+        "舊鑰匙",
+        "病歷夾"
+      ]
+    },
+    {
       "id": "duration",
       "label": "時長秒數",
       "type": "number",
@@ -66,22 +160,7 @@
       "placeholder": "每行一組：禁忌詞=替換詞"
     }
   ],
-  "manual_fields": [
-    {
-      "id": "manual_prompt_output",
-      "label": "Prompt 輸出路徑",
-      "type": "text",
-      "required": false,
-      "default": "output/manual_prompt.txt"
-    },
-    {
-      "id": "manual_response_input",
-      "label": "手動回覆 JSON 路徑",
-      "type": "text",
-      "required": false,
-      "default": "output/manual_response.json"
-    }
-  ],
+  "manual_fields": [],
   "openai_fields": [
     {
       "id": "model",
@@ -154,10 +233,11 @@
     {
       "id": "generate_manual_prompt",
       "label": "產生 Prompt",
-      "description": "依使用者設定產生可手動貼到 ChatGPT / Claude / Gemini 的 prompt。",
+      "description": "依使用者設定與規則清單產生可手動貼到 ChatGPT / Claude / Gemini 的 prompt。",
       "requires": [
         "sub_genre",
-        "duration"
+        "duration",
+        "generated_rules"
       ],
       "outputs": [
         "manual_prompt_text"
@@ -166,9 +246,9 @@
     {
       "id": "import_manual_response",
       "label": "匯入手動回覆",
-      "description": "讀取手動儲存的模型 JSON 回覆並驗證成 Storyboard。",
+      "description": "讀取手動貼回的模型 JSON 回覆並驗證成 Storyboard。",
       "requires": [
-        "manual_response_input"
+        "manual_response_text"
       ],
       "outputs": [
         "validated_storyboard"
@@ -196,7 +276,8 @@
       "requires": [
         "sub_genre",
         "duration",
-        "model"
+        "model",
+        "generated_rules"
       ],
       "outputs": [
         "validated_storyboard"
