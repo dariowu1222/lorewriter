@@ -172,7 +172,7 @@ def generate_voice_project(req: ProductionRequest) -> ApiResponse:
 
     return ApiResponse(
         success=True,
-        message="Voice package ready.",
+        message="語音腳本已產生。",
         data={"voice_project": voice_project.model_dump(mode="json")},
     )
 
@@ -187,7 +187,7 @@ def generate_image_prompt_project(req: ProductionRequest) -> ApiResponse:
 
     return ApiResponse(
         success=True,
-        message="Image prompt package ready.",
+        message="圖片提示詞已產生。",
         data={"image_prompt_project": image_project.model_dump(mode="json")},
     )
 
@@ -202,7 +202,7 @@ def generate_shot_storyboard(req: ProductionRequest) -> ApiResponse:
 
     return ApiResponse(
         success=True,
-        message="Shot storyboard ready.",
+        message="分鏡表已產生。",
         data={"shot_storyboard": shot_storyboard.model_dump(mode="json")},
     )
 
@@ -217,7 +217,7 @@ def generate_video_manifest(req: ProductionRequest) -> ApiResponse:
 
     return ApiResponse(
         success=True,
-        message="Video manifest ready.",
+        message="影片組裝清單已產生。",
         data={"video_manifest": video_manifest.model_dump(mode="json")},
     )
 

@@ -381,8 +381,10 @@ The next-step workflow buttons now produce local handoff packages:
 - 生成分鏡: shot storyboard package
 - 生成影片: video assembly manifest
 
-These are JSON contracts for the future production pipeline. v0.1 does not
-generate audio files, image files, mp4 files, or call ffmpeg.
+These are JSON contracts for the future production pipeline. The web UI shows
+human-readable previews, supports copying the generated text, and can download
+each package as JSON. v0.1 does not generate audio files, image files, mp4
+files, or call ffmpeg.
 
 Backend endpoints:
 
